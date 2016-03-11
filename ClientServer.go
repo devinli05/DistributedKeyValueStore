@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
+	"github.com/arcaneiceman/GoVector/govec"
 	"net"
 	"os"
 	"time"
-	"./govec"
 )
 
+//	"./govec"
 //	"github.com/arcaneiceman/GoVector/govec"
 const (
 	SERVERPORT = "8080"
