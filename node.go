@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/memberlist"
 )
 
 // args in get(args)
@@ -116,9 +118,9 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 // Main server loop.
 func main() {
 	// Parse args.
-	usage := fmt.Sprintf("Usage: %s [client ip:port] [kv-node ip:port] [r]\n",
+	usage := fmt.Sprintf("Usage: %s [client ip:port] [kv-node ip:port] [r] [ID] [Gossip Addr] [Gossip Port]\n",
 		os.Args[0])
-	if len(os.Args) != 4 {
+	if len(os.Args) != 7 {
 		fmt.Printf(usage)
 		os.Exit(1)
 	}
@@ -126,6 +128,9 @@ func main() {
 	clientsIpPort := os.Args[1]
 	kvnodesIpPort := os.Args[2]
 	replicationFactor := os.Args[3]
+	gossipID := os.Args[4]
+	gossipAddr := os.Args[5]
+	gossipPort := os.Args[6]
 
 	var err error
 	repFactor, err = strconv.Atoi(replicationFactor)
@@ -150,6 +155,44 @@ func main() {
 	rpc.Register(kvservice)
 	l, e := net.Listen("tcp", clientsIpPort)
 	checkError(e)
+
+	// ----------------------------------------
+	//				GOSSIP PROTOCOL
+	// ----------------------------------------
+
+	// Configuration
+	// Name - Must be unique
+	// BindAddr & BindPort - Address and Port to use for Gossip communication
+	var config = memberlist.DefaultLocalConfig()
+	config.Name = "Node" + gossipID
+	config.BindAddr = gossipAddr
+	config.BindPort, err = strconv.Atoi(gossipPort)
+
+	list, err := memberlist.Create(config)
+	if err != nil {
+		panic("Failed to create memberlist: " + err.Error())
+	}
+
+	// Attempt to Join an existing cluster by specifying at least one known member.
+	// Give Address and Port of potentially existing node
+	_, err = list.Join([]string{"192.168.1.40:4444"})
+
+	// Infinite Loop
+	// Every 5 seconds Print out all members in cluster
+	for {
+		time.Sleep(time.Second * 5)
+		fmt.Println("Members:")
+		for _, member := range list.Members() {
+			fmt.Printf("%s %s %d\n", member.Name, member.Addr, member.Port)
+		}
+		fmt.Println()
+	}
+
+	// ----------------------------------------
+	// ----------------------------------------
+
+	// Currently due to the Infinite Loop above, the below
+	// code does not run. Comment out the above loop to run this code
 	for {
 		nodeConn, err := l.Accept()
 		checkError(err)
