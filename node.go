@@ -115,6 +115,47 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 	return nil
 }
 
+// ----------------------------------------
+//				GOSSIP PROTOCOL
+// ----------------------------------------
+
+// Configuration
+// Name - Must be unique
+// BindAddr & BindPort - Address and Port to use for Gossip communication
+//	var config = memberlist.DefaultLocalConfig()
+//	config.Name = "Node" + gossipID
+//	config.BindAddr = gossipAddr
+//	config.BindPort, err = strconv.Atoi(gossipPort)
+
+func gossip(gossipID string, gossipAddr string, gossipPort string) {
+	var config = memberlist.DefaultLocalConfig()
+	config.Name = "Node" + gossipID
+	config.BindAddr = gossipAddr
+	config.BindPort, _ = strconv.Atoi(gossipPort)
+
+	list, err := memberlist.Create(config)
+	if err != nil {
+		panic("Failed to create memberlist: " + err.Error())
+	}
+
+	_, err = list.Join([]string{"198.162.33.54:4444"})
+
+	// Infinite Loop
+	// Every 5 seconds Print out all members in cluster
+	for {
+		time.Sleep(time.Second * 5)
+		fmt.Println("Members:")
+		for _, member := range list.Members() {
+			fmt.Printf("%s %s %d\n", member.Name, member.Addr, member.Port)
+		}
+		fmt.Println()
+	}
+
+}
+
+// ----------------------------------------
+// ----------------------------------------
+
 // Main server loop.
 func main() {
 	// Parse args.
@@ -156,43 +197,8 @@ func main() {
 	l, e := net.Listen("tcp", clientsIpPort)
 	checkError(e)
 
-	// ----------------------------------------
-	//				GOSSIP PROTOCOL
-	// ----------------------------------------
+	go gossip(gossipID, gossipAddr, gossipPort)
 
-	// Configuration
-	// Name - Must be unique
-	// BindAddr & BindPort - Address and Port to use for Gossip communication
-	var config = memberlist.DefaultLocalConfig()
-	config.Name = "Node" + gossipID
-	config.BindAddr = gossipAddr
-	config.BindPort, err = strconv.Atoi(gossipPort)
-
-	list, err := memberlist.Create(config)
-	if err != nil {
-		panic("Failed to create memberlist: " + err.Error())
-	}
-
-	// Attempt to Join an existing cluster by specifying at least one known member.
-	// Give Address and Port of potentially existing node
-	_, err = list.Join([]string{"192.168.1.40:4444"})
-
-	// Infinite Loop
-	// Every 5 seconds Print out all members in cluster
-	for {
-		time.Sleep(time.Second * 5)
-		fmt.Println("Members:")
-		for _, member := range list.Members() {
-			fmt.Printf("%s %s %d\n", member.Name, member.Addr, member.Port)
-		}
-		fmt.Println()
-	}
-
-	// ----------------------------------------
-	// ----------------------------------------
-
-	// Currently due to the Infinite Loop above, the below
-	// code does not run. Comment out the above loop to run this code
 	for {
 		nodeConn, err := l.Accept()
 		checkError(err)
