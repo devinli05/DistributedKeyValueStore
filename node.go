@@ -9,8 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/hashicorp/memberlist"
+	// "github.com/hashicorp/memberlist"
 )
 
 // args in get(args)
@@ -114,6 +113,95 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 	}
 	return nil
 }
+// ------------------------------------
+//             OR-SET 
+// ------------------------------------
+type ORSet struct {
+	addMap map[string]map[string]struct{}
+	removeMap map[string]map[string]struct{}
+}
+
+func newORSet() *ORSet {
+	return &ORSet {
+		addMap: make(map[string]map[string]struct{}),
+		removeMap: make(map[string]map[string]struct{}),
+	}
+}
+
+func (o *ORSet) Add(value string) {
+	// if the Map already contains the value
+	if m, ok := o.addMap[value]; ok {
+		timestamp := time.Now().Format(time.StampNano)
+		m[timestamp] = struct{}{}
+	} else {
+	// otherwise add the value to the map
+		m := make(map[string]struct{})
+		timestamp := time.Now().Format(time.StampNano)
+		m[timestamp] = struct{}{}
+		o.addMap[value] = m
+	}
+}			
+
+func (o *ORSet) Remove(value string) {
+	r, ok := o.removeMap[value]
+	if !ok {
+		r = make(map[string]struct{})
+	}
+
+	if m, ok := o.addMap[value]; ok {
+		for timestamp, _ := range m {
+			r[timestamp] = struct{}{}
+		}
+	}
+	o.removeMap[value] = r
+}
+
+func (o *ORSet) Contains(value string) bool {
+	addMap, ok := o.addMap[value]
+	if !ok {
+		return false
+	}
+
+	removeMap, ok := o.removeMap[value]
+	if !ok {
+		return true
+	}
+
+	for timestamp, _ := range addMap {
+		if _, ok := removeMap[timestamp]; !ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (o *ORSet) Merge(r *ORSet) {
+	for value, m := range r.addMap {
+		addMap, ok := o.addMap[value]
+		if ok {
+			for timestamp, _ := range m {
+				addMap[timestamp] = struct{}{}
+			}
+			continue
+		}
+		o.addMap[value] = m
+	}
+
+	for value, m := range r.removeMap {
+		removeMap, ok := o.removeMap[value]
+		if ok {
+			for timestamp, _ := range m {
+				removeMap[timestamp] = struct{}{}
+			}
+			continue
+		}
+		o.removeMap[value] = m
+	}
+}
+// ------------------------------------
+// ------------------------------------
+
 
 // ----------------------------------------
 //				GOSSIP PROTOCOL
