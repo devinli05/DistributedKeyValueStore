@@ -9,7 +9,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	// "github.com/hashicorp/memberlist"
+
+	"github.com/hashicorp/memberlist"
 )
 
 // args in get(args)
@@ -20,6 +21,12 @@ type NodeGetArgs struct {
 // args in put(args)
 type NodePutArgs struct {
 	Key string // key to associate value with
+	Val string // value
+}
+
+//args in remove(args)
+type NodeRemoveArgs struct {
+	Key string // key associated with value
 	Val string // value
 }
 
@@ -40,6 +47,7 @@ var repFactor int
 var kvmap map[string]string
 var nodeRpc *rpc.Client
 var nodeId string
+var ORset *ORSet
 
 //var availableNodes map[string]bool
 
@@ -83,6 +91,16 @@ func (ns *NodeService) Put(args *NodePutArgs, reply *ValReply) error {
 	kvMutex.Lock()
 	// Defer mutex unlock to (any) function exit.
 	defer kvMutex.Unlock()
+	ORset.Add(args.Key, args.Val)
+	reply.Val = "Success"
+	return nil
+}
+
+func (ns *NodeService) Remove(args *NodePutArgs, reply *ValReply) error {
+	// Acquire mutex for exclusive access to kvmap.
+	kvMutex.Lock()
+	// Defer mutex unlock to (any) function exit.
+	defer kvMutex.Unlock()
 	val := kvmap[args.Key]
 	if val == unavail {
 		reply.Val = unavail
@@ -90,7 +108,7 @@ func (ns *NodeService) Put(args *NodePutArgs, reply *ValReply) error {
 		kvmap[args.Key] = args.Val
 		reply.Val = ""
 	}
-	fmt.Println("node " + nodeId + " put key: " + args.Key + " val: " + args.Val)
+	fmt.Println("node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
 	return nil
 }
 
@@ -113,56 +131,58 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 	}
 	return nil
 }
+
 // ------------------------------------
-//             OR-SET 
+//             OR-SET
 // ------------------------------------
 type ORSet struct {
-	addMap map[string]map[string]struct{}
-	removeMap map[string]map[string]struct{}
+	addMap    map[string]map[string]string
+	removeMap map[string]map[string]string
 }
 
 func newORSet() *ORSet {
-	return &ORSet {
-		addMap: make(map[string]map[string]struct{}),
-		removeMap: make(map[string]map[string]struct{}),
+	return &ORSet{
+		addMap:    make(map[string]map[string]string),
+		removeMap: make(map[string]map[string]string),
 	}
 }
 
-func (o *ORSet) Add(value string) {
+func (o *ORSet) Add(key string, value string) {
 	// if the Map already contains the value
-	if m, ok := o.addMap[value]; ok {
+	if m, ok := o.addMap[key]; ok {
 		timestamp := time.Now().Format(time.StampNano)
-		m[timestamp] = struct{}{}
+		m[timestamp] = value
 	} else {
-	// otherwise add the value to the map
-		m := make(map[string]struct{})
+		// otherwise add the value to the map
+		m := make(map[string]string)
 		timestamp := time.Now().Format(time.StampNano)
-		m[timestamp] = struct{}{}
-		o.addMap[value] = m
+		m[timestamp] = value
+		o.addMap[key] = m
 	}
-}			
+	fmt.Println(o)
+}
 
-func (o *ORSet) Remove(value string) {
-	r, ok := o.removeMap[value]
+func (o *ORSet) Remove(key string, value string) {
+	r, ok := o.removeMap[key]
 	if !ok {
-		r = make(map[string]struct{})
+		r = make(map[string]string)
 	}
 
-	if m, ok := o.addMap[value]; ok {
+	if m, ok := o.addMap[key]; ok {
 		for timestamp, _ := range m {
-			r[timestamp] = struct{}{}
+			r[timestamp] = value
 		}
 	}
-	o.removeMap[value] = r
+	o.removeMap[key] = r
 }
 
-func (o *ORSet) Contains(value string) bool {
-	addMap, ok := o.addMap[value]
+func (o *ORSet) Contains(key string) bool {
+	addMap, ok := o.addMap[key]
 	if !ok {
 		return false
 	}
 
-	removeMap, ok := o.removeMap[value]
+	removeMap, ok := o.removeMap[key]
 	if !ok {
 		return true
 	}
@@ -177,31 +197,31 @@ func (o *ORSet) Contains(value string) bool {
 }
 
 func (o *ORSet) Merge(r *ORSet) {
-	for value, m := range r.addMap {
-		addMap, ok := o.addMap[value]
+	for key, m := range r.addMap {
+		addMap, ok := o.addMap[key]
 		if ok {
 			for timestamp, _ := range m {
-				addMap[timestamp] = struct{}{}
+				addMap[timestamp] = ""
 			}
 			continue
 		}
-		o.addMap[value] = m
+		o.addMap[key] = m
 	}
 
-	for value, m := range r.removeMap {
-		removeMap, ok := o.removeMap[value]
+	for key, m := range r.removeMap {
+		removeMap, ok := o.removeMap[key]
 		if ok {
 			for timestamp, _ := range m {
-				removeMap[timestamp] = struct{}{}
+				removeMap[timestamp] = ""
 			}
 			continue
 		}
-		o.removeMap[value] = m
+		o.removeMap[key] = m
 	}
 }
-// ------------------------------------
-// ------------------------------------
 
+// ------------------------------------
+// ------------------------------------
 
 // ----------------------------------------
 //				GOSSIP PROTOCOL
@@ -262,6 +282,8 @@ func main() {
 	gossipPort := os.Args[6]
 
 	var err error
+	ORset = newORSet()
+
 	repFactor, err = strconv.Atoi(replicationFactor)
 	checkError(err)
 	// TODO: do here the stuff other
