@@ -18,12 +18,14 @@ const (
 
 var done chan int = make(chan int, 2)
 
+/* main is declared in node.go
 func main() {
 	go server(SERVERPORT)
 	go client(CLIENTPORT, SERVERPORT)
 	<-done
 	<-done
 }
+*/
 
 //Msg is the message sent over the network
 //Msg is capitolized so GoVecs encoder can acess it
