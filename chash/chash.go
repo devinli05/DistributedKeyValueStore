@@ -60,4 +60,15 @@ func (ring *Ring) Add(node string) {
 }
 
 func (ring *Ring) Remove(node string) {
+	keyList := ring.nodeKeys[node]
+	delete(ring.nodeKeys, node)
+	newNodes := make([]string, 0)
+	for node := range ring.nodeKeys {
+		newNodes = append(newNodes, node)
+	}
+	n := len(newNodes)
+	for i := 0; i < len(keyList); i++ {
+		ring.hashMap[keyList[i]] = newNodes[i%n]
+		ring.nodeKeys[newNodes[i%n]] = append(ring.nodeKeys[newNodes[i%n]], keyList[i])
+	}
 }
