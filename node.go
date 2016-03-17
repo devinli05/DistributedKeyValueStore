@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
 	"github.com/hashicorp/memberlist"
 )
 
@@ -114,6 +113,51 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 	}
 	return nil
 }
+// ------------------------------------
+//             OR-SET 
+// ------------------------------------
+type ORSet struct {
+	addMap map[string]map[string]struct{}
+	removeMap map[string]map[string]struct{}
+}
+
+func newORSet() *ORSet {
+	return &ORSet {
+		addMap: make(map[string]map[string]struct{}),
+		removeMap: make(map[string]map[string]struct{}),
+	}
+}
+
+func (o *ORSet) Add(value string) {
+	// if the Map already contains the value
+	if timestamp, ok := o.addMap[value]; ok {
+		timestamp := time.Now().Format(time.StampNano)
+		o.addMap[value] = timestamp
+	} else {
+	// otherwise add the value to the map
+		m := make(map[string]struct{})
+		timestamp := time.Now().Format(time.StampNano)
+		m[timestamp] = struct{}{}
+		o.addMap[value] = m
+	}
+}			
+
+func (o *ORSet) Remove(value string) {
+	r, ok := o.removeMap[value]
+	if !ok {
+		r = make(map[string]struct{})
+	}
+
+	if m, ok := o.addMap[value]; ok {
+		for timestamp, _ := range m {
+			r[timestamp] = struct{}{}
+		}
+	}
+	o.removeMap[value] = r
+}
+// ------------------------------------
+// ------------------------------------
+
 
 // Main server loop.
 func main() {
