@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"github.com/hashicorp/memberlist"
+	// "github.com/hashicorp/memberlist"
 )
 
 // args in get(args)
@@ -130,9 +130,9 @@ func newORSet() *ORSet {
 
 func (o *ORSet) Add(value string) {
 	// if the Map already contains the value
-	if timestamp, ok := o.addMap[value]; ok {
+	if m, ok := o.addMap[value]; ok {
 		timestamp := time.Now().Format(time.StampNano)
-		o.addMap[value] = timestamp
+		m[timestamp] = struct{}{}
 	} else {
 	// otherwise add the value to the map
 		m := make(map[string]struct{})
@@ -154,6 +154,50 @@ func (o *ORSet) Remove(value string) {
 		}
 	}
 	o.removeMap[value] = r
+}
+
+func (o *ORSet) Contains(value string) bool {
+	addMap, ok := o.addMap[value]
+	if !ok {
+		return false
+	}
+
+	removeMap, ok := o.removeMap[value]
+	if !ok {
+		return true
+	}
+
+	for timestamp, _ := range addMap {
+		if _, ok := removeMap[timestamp]; !ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (o *ORSet) Merge(r *ORSet) {
+	for value, m := range r.addMap {
+		addMap, ok := o.addMap[value]
+		if ok {
+			for timestamp, _ := range m {
+				addMap[timestamp] = struct{}{}
+			}
+			continue
+		}
+		o.addMap[value] = m
+	}
+
+	for value, m := range r.removeMap {
+		removeMap, ok := o.removeMap[value]
+		if ok {
+			for timestamp, _ := range m {
+				removeMap[timestamp] = struct{}{}
+			}
+			continue
+		}
+		o.removeMap[value] = m
+	}
 }
 // ------------------------------------
 // ------------------------------------
