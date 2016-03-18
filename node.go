@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"net"
 	"net/rpc"
+	"./orset"
 	"os"
 	"strconv"
 	"sync"
 	"time"
-
 	"github.com/hashicorp/memberlist"
 )
 
@@ -49,7 +49,7 @@ var repFactor int
 var kvmap map[string]string
 var nodeRpc *rpc.Client
 var nodeId string
-var ORset *ORSet
+var ors *orset.ORSet
 
 //var availableNodes map[string]bool
 
@@ -93,7 +93,7 @@ func (ns *NodeService) Put(args *NodePutArgs, reply *ValReply) error {
 	kvMutex.Lock()
 	// Defer mutex unlock to (any) function exit.
 	defer kvMutex.Unlock()
-	ORset.Add(args.Key, args.Val)
+	ors.Add(args.Key, args.Val)
 	reply.Val = "Success"
 	return nil
 }
@@ -200,8 +200,8 @@ func main() {
 	checkError(err)
 	fmt.Printf("Results: %v\n", nodes)
 
-	var err error
-	ORset = NewORSet()
+	// var err error
+	ors = orset.NewORSet()
 
 	repFactor, err = strconv.Atoi(replicationFactor)
 	checkError(err)
