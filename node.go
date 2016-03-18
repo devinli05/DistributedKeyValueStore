@@ -2,14 +2,16 @@ package main
 
 import (
 	//"errors"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/rpc"
-	"./orset"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
 	"github.com/hashicorp/memberlist"
 )
 
