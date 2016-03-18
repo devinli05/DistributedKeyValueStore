@@ -192,6 +192,14 @@ func main() {
 	gossipAddr := os.Args[5]
 	gossipPort := os.Args[6]
 
+	config, err := ioutil.ReadFile("./config.json")
+	checkError(err)
+	fmt.Printf("%s\n", string(config))
+	var nodes map[string]string
+	err = json.Unmarshal(config, &nodes)
+	checkError(err)
+	fmt.Printf("Results: %v\n", nodes)
+
 	var err error
 	ORset = newORSet()
 
