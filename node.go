@@ -132,8 +132,6 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 	return nil
 }
 
-
-
 // ----------------------------------------
 //				GOSSIP PROTOCOL
 // ----------------------------------------
@@ -201,7 +199,7 @@ func main() {
 	fmt.Printf("Results: %v\n", nodes)
 
 	var err error
-	ORset = newORSet()
+	ORset = NewORSet()
 
 	repFactor, err = strconv.Atoi(replicationFactor)
 	checkError(err)

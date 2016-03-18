@@ -5,10 +5,7 @@ package orset
 
 import (
 	"fmt"
-	"os"
-	"sync"
 	"time"
-	"./orset"
 )
 
 type ORSet struct {
@@ -16,7 +13,7 @@ type ORSet struct {
 	removeMap map[string]map[string]string
 }
 
-func newORSet() *ORSet {
+func NewORSet() *ORSet {
 	return &ORSet{
 		addMap:    make(map[string]map[string]string),
 		removeMap: make(map[string]map[string]string),
