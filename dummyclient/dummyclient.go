@@ -60,13 +60,30 @@ func main() {
 	// Use kvVal for all RPC replies.
 	var kvVal ValReply
 
-	// Put("my-key", 2016)
+	//	kvVal.Val = ""
+	// Put test
 	putArgs := PutArgs{
-		Key: "my-key",
-		Val: "party-like-its-416"}
+		Key: "test-key",
+		Val: "testing 1 2 3"}
 	err = kvService.Call("NodeService.Put", putArgs, &kvVal)
 	checkError(err)
 	fmt.Println("KV.put(" + putArgs.Key + "," + putArgs.Val + ") = " + kvVal.Val)
+
+	//	kvVal.Val = ""
+	// Put test
+	putArgs = PutArgs{
+		Key: "test-key",
+		Val: "testing 1 2 3 4"}
+	err = kvService.Call("NodeService.Put", putArgs, &kvVal)
+	checkError(err)
+	fmt.Println("KV.put(" + putArgs.Key + "," + putArgs.Val + ") = " + kvVal.Val)
+
+	//	kvVal.Val = ""
+	getArgs := GetArgs{
+		Key: "test-key"}
+	err = kvService.Call("NodeService.Get", getArgs, &kvVal)
+	checkError(err)
+	fmt.Println("KV.get(" + getArgs.Key + ") = " + kvVal.Val)
 }
 
 // If error is non-nil, print it out and halt.

@@ -69,12 +69,30 @@ func (o *ORSet) Contains(key string) bool {
 	return false
 }
 
+func (o *ORSet) Get(key string) string {
+	var counter int
+	m, ok := o.addMap[key]
+	if ok {
+		total := len(m)
+		for timestamp, x := range m {
+			if counter < total-1 {
+				delete(m, timestamp)
+				counter++
+				continue
+			} else {
+				return x
+			}
+		}
+	}
+	return ""
+}
+
 func (o *ORSet) Merge(r *ORSet) {
 	for key, m := range r.addMap {
 		addMap, ok := o.addMap[key]
 		if ok {
-			for timestamp, _ := range m {
-				addMap[timestamp] = ""
+			for timestamp, val := range m {
+				addMap[timestamp] = val
 			}
 			continue
 		}
@@ -84,8 +102,8 @@ func (o *ORSet) Merge(r *ORSet) {
 	for key, m := range r.removeMap {
 		removeMap, ok := o.removeMap[key]
 		if ok {
-			for timestamp, _ := range m {
-				removeMap[timestamp] = ""
+			for timestamp, val := range m {
+				removeMap[timestamp] = val
 			}
 			continue
 		}

@@ -7,11 +7,12 @@ import (
 	"io/ioutil"
 	"net"
 	"net/rpc"
-	"./orset"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"./orset"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -63,13 +64,6 @@ const kvnodeFailure string = "kvnodeFailure"
 // is unavailable: used in return values to clients and internally.
 const unavail string = "unavailable"
 
-// Registration message of kv-node
-type RegMsg struct {
-	Id   string //unique Id of kv-node
-	Ip   string //ip + port of kv-node
-	Keys string //space delimited list of all keys
-}
-
 //type NodeService int
 type NodeService int
 
@@ -78,13 +72,9 @@ func (ns *NodeService) Get(args *NodeGetArgs, reply *ValReply) error {
 	kvMutex.Lock()
 	// Defer mutex unlock to (any) function exit.
 	defer kvMutex.Unlock()
-	val, contains := kvmap[args.Key]
-	if contains {
-		reply.Val = val
-	} else {
-		reply.Val = ""
-	}
-	fmt.Println("node " + nodeId + " Get key: " + args.Key)
+	//reply.Val = ""
+	reply.Val = ors.Get(args.Key)
+	fmt.Println(reply.Val)
 	return nil
 }
 
