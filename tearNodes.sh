@@ -1,2 +1,2 @@
 #!/bin/bash
-pkill -u v0r5 -f /tmp/go &
+pkill -u $USER -f /tmp/go &
