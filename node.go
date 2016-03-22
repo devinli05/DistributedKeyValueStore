@@ -1,7 +1,6 @@
 package main
 
 import (
-	//"errors"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,8 +8,11 @@ import (
 	"net/rpc"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"./chash"
 
 	"./orset"
 	"github.com/hashicorp/memberlist"
@@ -136,18 +138,18 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 //	config.BindAddr = gossipAddr
 //	config.BindPort, err = strconv.Atoi(gossipPort)
 
-func gossip(gossipID string, gossipAddr string, gossipPort string) {
+func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr string) {
 	var config = memberlist.DefaultLocalConfig()
 	config.Name = "Node" + gossipID
 	config.BindAddr = gossipAddr
-	config.BindPort, _ = strconv.Atoi(gossipPort)
+	config.BindPort = gossipPort
 
 	list, err := memberlist.Create(config)
 	if err != nil {
 		panic("Failed to create memberlist: " + err.Error())
 	}
 
-	_, err = list.Join([]string{"198.162.33.54:4444"})
+	_, err = list.Join([]string{bootstrapAddr})
 
 	// Infinite Loop
 	// Every 5 seconds Print out all members in cluster
@@ -168,34 +170,54 @@ func gossip(gossipID string, gossipAddr string, gossipPort string) {
 // Main server loop.
 func main() {
 	// Parse args.
-	usage := fmt.Sprintf("Usage: %s [client ip:port] [kv-node ip:port] [r] [ID] [Gossip Addr] [Gossip Port]\n",
+	usage := fmt.Sprintf("Usage: %s [ReplicationFactor] [NodeID]\n",
 		os.Args[0])
-	if len(os.Args) != 7 {
+	if len(os.Args) != 3 {
 		fmt.Printf(usage)
 		os.Exit(1)
 	}
 
-	clientsIpPort := os.Args[1]
-	kvnodesIpPort := os.Args[2]
-	replicationFactor := os.Args[3]
-	gossipID := os.Args[4]
-	gossipAddr := os.Args[5]
-	gossipPort := os.Args[6]
+	//clientsIpPort := os.Args[1]
+	//kvnodesIpPort := os.Args[2]
+	replicationFactor := os.Args[1]
+	gossipID := os.Args[2]
+	//gossipAddr := os.Args[5]
+	//gossipPort := os.Args[6]
 
+	nodeId := gossipID
 	config, err := ioutil.ReadFile("./config.json")
 	checkError(err)
-	fmt.Printf("%s\n", string(config))
+	//fmt.Printf("%s\n", string(config))
 	var nodes map[string]string
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
-	fmt.Printf("Results: %v\n", nodes)
+	//fmt.Printf("Results: %v\n", nodes)
 
-	// var err error
+	bootstrapAddr := nodes["0"]
+	nodeIpPort := ""
+	if strings.EqualFold(nodeId, "0") {
+		nodeIpPort = nodes[nodeId]
+	} else {
+		nodeIpPort = nodes[nodeId] + ":0"
+	}
+	gossipAddr, err := net.ResolveUDPAddr("udp", nodeIpPort)
+	checkError(err)
+	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
+	clientsIpPort := gossipAddr.IP.String() + ":666" + nodeId
+	kvnodesIpPort := gossipAddr.IP.String() + ":555" + nodeId
+	//nodeKvnodeAddr, err := net.ResolveTCPAddr("tcp", nodeIpPort)
+	//checkError(err)
+	//nodeClientAddr, err := net.ResolveTCPAddr("tcp", nodeIpPort)
+	//checkError(err)
+
+	nodeRpcList := []string{"127.0.0.1:5550", "127.0.0.1:5551", "127.0.0.1:5552", "127.0.0.1:5553"}
+	consHash := chash.New(1024, nodeRpcList, nil)
+	fmt.Println(consHash.Find("0"))
+	fmt.Println(consHash.Find("1"))
 	ors = orset.NewORSet()
 
 	repFactor, err = strconv.Atoi(replicationFactor)
 	checkError(err)
-	// TODO: do here the stuff other
 	kvMutex = &sync.Mutex{}
 
 	kvNodeAddr, err := net.ResolveUDPAddr("udp", kvnodesIpPort)
@@ -204,20 +226,14 @@ func main() {
 	checkError(err)
 	// Clean up the connection when we exit main().
 	defer pingConn.Close()
-	// Use channel to block until at least one node joins
-	//hasKvNode := make(chan bool, 1)
-	//go handleRegistration(pingConn, hasKvNode)
-	//<-hasKvNode
-	//time.Sleep(time.Second)
 
 	// Setup key-value store and register service.
 	kvservice := new(NodeService)
 	rpc.Register(kvservice)
 	l, e := net.Listen("tcp", clientsIpPort)
 	checkError(e)
-
-	go gossip(gossipID, gossipAddr, gossipPort)
-
+	// Clean up the connection when we exit main().
+	defer l.Close()
 	for {
 		nodeConn, err := l.Accept()
 		checkError(err)

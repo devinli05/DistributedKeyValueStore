@@ -87,7 +87,6 @@ func (o *ORSet) Get(key string) string {
 	return ""
 }
 
-
 func (local *ORSet) Merge(remote *ORSet) {
 	for key, r := range remote.addMap {
 		l, ok := local.addMap[key]
@@ -95,10 +94,10 @@ func (local *ORSet) Merge(remote *ORSet) {
 			for timestamp, val := range r {
 				l[timestamp] = val
 			}
-			continue 
+			continue
 		}
 		// write the remote to local
-		local.addMapkey] = r
+		local.addMap[key] = r
 	}
 
 	for key, r := range remote.removeMap {
