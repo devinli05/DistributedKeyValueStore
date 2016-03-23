@@ -172,15 +172,16 @@ func main() {
 	go receiveMessagesLog("localhost:8888")
 
 	// Determine ID of node dummyclient will connect to
-	re := regexp.MustCompile(":777.+")
+	re := regexp.MustCompile(":666.+")
 	nodeId := re.FindString(kvAddr)
-	nodeId = strings.Replace(nodeId, ":777", "", -1)
+	nodeId = strings.Replace(nodeId, ":666", "", -1)
+	fmt.Println(nodeId)
 
 	// Determine IP of node dummyclient will connect to
-	re = regexp.MustCompile(".+:777")
+	re = regexp.MustCompile(".+:666")
 	nodeIP := re.FindString(kvAddr)
-	nodeIP = strings.Replace(nodeIP, ":777", "", -1)
-
+	nodeIP = strings.Replace(nodeIP, ":666", "", -1)
+	fmt.Println(nodeIP)
 	// Connect to the KV-service via RPC.
 	kvService, err := rpc.Dial("tcp", kvAddr)
 	checkError(err)
