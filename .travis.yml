@@ -2,6 +2,6 @@ language: go
 go:
         - 1.4
         - 1.5
-script: go get github.com/arcaneiceman/GoVector/govec && go get github.com/hashicorp/memberlist && go test
+script: go get github.com/arcaneiceman/GoVector/govec && go get github.com/hashicorp/memberlist && go test chash/*
 notifications:
           email: false

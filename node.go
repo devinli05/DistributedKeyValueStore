@@ -12,9 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"./chash"
-
-	"./orset"
+	"./node"
 	"github.com/hashicorp/memberlist"
 )
 
