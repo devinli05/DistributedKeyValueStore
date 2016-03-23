@@ -53,6 +53,8 @@ var kvmap map[string]string
 var nodeRpc *rpc.Client
 var nodeId string
 var ors *orset.ORSet
+var consHash *chash.Ring
+var myRpc string
 
 //var availableNodes map[string]bool
 
@@ -75,13 +77,49 @@ func (ns *NodeService) Get(args *NodeGetArgs, reply *ValReply) error {
 	// Defer mutex unlock to (any) function exit.
 	defer kvMutex.Unlock()
 	//reply.Val = ""
+	callNode := consHash.Find(args.Key)
+	if callNode == myRpc {
+		reply.Val = ors.Get(args.Key)
+		LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
+	} else {
+		//RPCaddr, _ := net.ResolveTCPAddr("tcp", callNode)
+		call, _ := rpc.Dial("tcp", callNode)
+		err := call.Call("NodeService.NodeGet", args, &reply)
+		checkError(err)
+	}
+	return nil
+}
+
+func (ns *NodeService) NodeGet(args *NodeGetArgs, reply *ValReply) error {
+	// Acquire mutex for exclusive access to kvmap.
+	kvMutex.Lock()
+	// Defer mutex unlock to (any) function exit.
+	defer kvMutex.Unlock()
 	reply.Val = ors.Get(args.Key)
-	fmt.Println(reply.Val)
 	LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
 	return nil
 }
 
 func (ns *NodeService) Put(args *NodePutArgs, reply *ValReply) error {
+	// Acquire mutex for exclusive access to kvmap.
+	kvMutex.Lock()
+	// Defer mutex unlock to (any) function exit.
+	defer kvMutex.Unlock()
+	callNode := consHash.Find(args.Key)
+	if callNode == myRpc {
+		ors.Add(args.Key, args.Val)
+		LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
+	} else {
+		//RPCaddr, _ := net.ResolveTCPAddr("tcp", callNode)
+		call, _ := rpc.Dial("tcp", callNode)
+		err := call.Call("NodeService.NodePut", args, &reply)
+		checkError(err)
+	}
+	reply.Val = "Success"
+	return nil
+}
+
+func (ns *NodeService) NodePut(args *NodePutArgs, reply *ValReply) error {
 	// Acquire mutex for exclusive access to kvmap.
 	kvMutex.Lock()
 	// Defer mutex unlock to (any) function exit.
@@ -154,14 +192,14 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 
 	// Infinite Loop
 	// Every 5 seconds Print out all members in cluster
-	for {
-		time.Sleep(time.Second * 5)
-		fmt.Println("Members:")
-		for _, member := range list.Members() {
-			fmt.Printf("%s %s %d\n", member.Name, member.Addr, member.Port)
-		}
-		fmt.Println()
-	}
+	//for {
+	//time.Sleep(time.Second * 5)
+	//fmt.Println("Members:")
+	//for _, member := range list.Members() {
+	//	fmt.Printf("%s %s %d\n", member.Name, member.Addr, member.Port)
+	//}
+	//fmt.Println()
+	//}
 
 }
 
@@ -337,7 +375,7 @@ func main() {
 	rpc.Register(kvservice)
 	l, e := net.Listen("tcp", clientsIpPort)
 	checkError(e)
-
+	myRpc = clientsIpPort
 	// Clean up the connection when we exit main().
 	defer l.Close()
 
