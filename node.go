@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"./chash"
-	"github.com/arcaneiceman/GoVector/govec"
-
 	"./orset"
+	"github.com/arcaneiceman/GoVector/govec"
 	"github.com/hashicorp/memberlist"
 )
 
