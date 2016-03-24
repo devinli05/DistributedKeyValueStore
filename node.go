@@ -19,12 +19,12 @@ import (
 )
 
 // args in get(args)
-type NodeGetArgs struct {
+type GetArgs struct {
 	Key string // key to look up
 }
 
 // args in put(args)
-type NodePutArgs struct {
+type PutArgs struct {
 	Key string // key to associate value with
 	Val string // value
 }
@@ -49,14 +49,12 @@ type ValReply struct {
 
 var kvMutex *sync.Mutex
 var repFactor int
-var kvmap map[string]string
-var nodeRpc *rpc.Client
 var nodeId string
 var ors *orset.ORSet
 var consHash *chash.Ring
-var myRpc string
-
-//var availableNodes map[string]bool
+var govecUdpAddrMap map[string]string
+var nodesRpcAddrMap map[string]string
+var rpcAddrRpcCliMap map[string]*rpc.Client
 
 const rpcTimeout time.Duration = time.Duration(500) * time.Millisecond
 
@@ -64,111 +62,68 @@ const rpcTimeout time.Duration = time.Duration(500) * time.Millisecond
 // has failed. This will be used in the error message
 const kvnodeFailure string = "kvnodeFailure"
 
-// Reserved value in the service that is used to indicate that the key
-// is unavailable: used in return values to clients and internally.
-const unavail string = "unavailable"
-
-//type NodeService int
 type NodeService int
 
-func (ns *NodeService) Get(args *NodeGetArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kvmap.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	//reply.Val = ""
-	callNode := consHash.Find(args.Key)
-	if callNode == myRpc {
+func getOwnerRpcClient(ownerRpcAddr string) *rpc.Client {
+	var err error
+	ownerRpcClient, contains := rpcAddrRpcCliMap[ownerRpcAddr]
+	if !contains {
+		ownerRpcClient, err = rpc.Dial("tcp", ownerRpcAddr)
+		checkError(err)
+		rpcAddrRpcCliMap[ownerRpcAddr] = ownerRpcClient
+	}
+	return ownerRpcClient
+}
+
+func (ns *NodeService) Get(args *GetArgs, reply *ValReply) error {
+	var err error = nil
+	ownerId := consHash.Find(args.Key)
+	ownerRpcAddr := nodesRpcAddrMap[ownerId]
+	//ownerRpcAddr := "127.0.0.1:6661"
+	if strings.EqualFold(ownerRpcAddr, nodesRpcAddrMap[nodeId]) {
+		kvMutex.Lock()
+		defer kvMutex.Unlock()
 		reply.Val = ors.Get(args.Key)
-		LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
+		//LogLocalEvent("Get Key: " + args.Key + " Reply: " + reply.Val)
 	} else {
-		//RPCaddr, _ := net.ResolveTCPAddr("tcp", callNode)
-		call, _ := rpc.Dial("tcp", callNode)
-		err := call.Call("NodeService.NodeGet", args, &reply)
+		err = getOwnerRpcClient(ownerRpcAddr).Call("NodeService.Get", args, reply)
 		checkError(err)
+		localUdpAddr := strings.Split(govecUdpAddrMap[nodeId], ":")[0] + ":0"
+		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Get Request "+args.Key)
 	}
-	return nil
+	return err
 }
 
-func (ns *NodeService) NodeGet(args *NodeGetArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kvmap.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	reply.Val = ors.Get(args.Key)
-	LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
-	return nil
-}
-
-func (ns *NodeService) Put(args *NodePutArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kvmap.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	callNode := consHash.Find(args.Key)
-	if callNode == myRpc {
+func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
+	var err error = nil
+	ownerId := consHash.Find(args.Key)
+	ownerRpcAddr := nodesRpcAddrMap[ownerId]
+	//ownerRpcAddr := "127.0.0.1:6661"
+	fmt.Println(" owner: " + ownerRpcAddr)
+	fmt.Println("whoami: " + nodesRpcAddrMap[nodeId])
+	if strings.EqualFold(ownerRpcAddr, nodesRpcAddrMap[nodeId]) {
+		kvMutex.Lock()
+		defer kvMutex.Unlock()
 		ors.Add(args.Key, args.Val)
-		LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
+		reply.Val = "Success"
+		//LogLocalEvent("Put Key: " + args.Key + " Value: " + args.Val)
 	} else {
-		//RPCaddr, _ := net.ResolveTCPAddr("tcp", callNode)
-		call, _ := rpc.Dial("tcp", callNode)
-		err := call.Call("NodeService.NodePut", args, &reply)
+		err = getOwnerRpcClient(ownerRpcAddr).Call("NodeService.Put", args, reply)
 		checkError(err)
+		localUdpAddr := strings.Split(govecUdpAddrMap[nodeId], ":")[0] + ":0"
+		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Put Request "+args.Key+":"+args.Val)
 	}
-	reply.Val = "Success"
-	return nil
+	return err
 }
 
-func (ns *NodeService) NodePut(args *NodePutArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kvmap.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	ors.Add(args.Key, args.Val)
-	reply.Val = "Success"
-	LogLocalEvent("Put Function - Key: " + args.Key + " Reply: " + reply.Val)
-	return nil
-}
-
-func (ns *NodeService) Remove(args *NodePutArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kvmap.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	val := kvmap[args.Key]
-	if val == unavail {
-		reply.Val = unavail
-	} else {
-		kvmap[args.Key] = args.Val
-		reply.Val = ""
-	}
-	fmt.Println("node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
-	LogLocalEvent("Remove Function - node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
-	return nil
+/*
+func (ns *NodeService) Remove(args *PutArgs, reply *ValReply) error {
 }
 
 // TESTSET
-func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kv nodes.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	val, contains := kvmap[args.Key]
-	if contains {
-		if args.TestVal == val {
-			kvmap[args.Key] = args.NewVal
-			reply.Val = args.NewVal
-		} else {
-			reply.Val = val
-		}
-	} else {
-		reply.Val = ""
-	}
-
-	LogLocalEvent("Testset Function - Key:" + args.Key + " Old Value: " + args.TestVal + " New Value: " + args.NewVal + " Return Value: " + reply.Val)
-	return nil
+func (kvs *KeyValService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 }
-
+*/
 // ----------------------------------------
 // GOSSIP PROTOCOL
 // ----------------------------------------
@@ -176,6 +131,7 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 // Configuration
 // Name - Must be unique
 // BindAddr & BindPort - Address and Port to use for Gossip communication
+// BootstrapAddr - Address of seed node known to all nodes
 
 func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr string) {
 	var config = memberlist.DefaultLocalConfig()
@@ -325,17 +281,14 @@ func main() {
 	replicationFactor := os.Args[1]
 	gossipID := os.Args[2]
 
-	nodeId := gossipID
+	nodeId = gossipID
 	config, err := ioutil.ReadFile("./config.json")
 	checkError(err)
 	var nodes map[string]string
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
 
-	// Set up GoVector Logging
-	Logger = govec.Initialize(nodeId, nodeId)
-	LogMutex = &sync.Mutex{}
-
+	// Set up gossip protocol libary using known ip:port of node 0 to bootstrap
 	bootstrapAddr := nodes["0"]
 	nodeIpPort := ""
 	if strings.EqualFold(nodeId, "0") {
@@ -346,43 +299,43 @@ func main() {
 	gossipAddr, err := net.ResolveUDPAddr("udp", nodeIpPort)
 	checkError(err)
 	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
-	clientsIpPort := gossipAddr.IP.String() + ":666" + nodeId
-	kvnodesIpPort := gossipAddr.IP.String() + ":555" + nodeId
 
+	nodeIdList := strings.Split(nodes["list"], " ")
+	govecUdpAddrMap = make(map[string]string)
+	nodesRpcAddrMap = make(map[string]string)
+	rpcAddrRpcCliMap = make(map[string]*rpc.Client)
+	for id := range nodes {
+		govecUdpAddrMap[id] = gossipAddr.IP.String() + ":777" + id
+		nodesRpcAddrMap[id] = gossipAddr.IP.String() + ":666" + id
+	}
+	myLogAddr := govecUdpAddrMap[nodeId]
+	myRpcAddr := nodesRpcAddrMap[nodeId]
+
+	// Set up GoVector Logging
+	Logger = govec.Initialize(nodeId, nodeId)
+	LogMutex = &sync.Mutex{}
 	// Used for GoVector Logging
-	go receiveMessagesLog(gossipAddr.IP.String() + ":777" + nodeId)
+	go receiveMessagesLog(myLogAddr)
 
-	nodeRpcList := []string{"127.0.0.1:5550", "127.0.0.1:5551", "127.0.0.1:5552", "127.0.0.1:5553"}
-	consHash := chash.New(1024, nodeRpcList, nil)
-	fmt.Println(consHash.Find("0"))
-	fmt.Println(consHash.Find("1"))
+	numberPortions := 1024
+	var hashFunction chash.Hash = nil
+	consHash = chash.New(numberPortions, nodeIdList, hashFunction)
 	ors = orset.NewORSet()
 
 	repFactor, err = strconv.Atoi(replicationFactor)
 	checkError(err)
 	kvMutex = &sync.Mutex{}
 
-	kvNodeAddr, err := net.ResolveUDPAddr("udp", kvnodesIpPort)
+	// node RPC service setup
+	rpc.Register(new(NodeService))
+	myRpcListener, err := net.Listen("tcp", myRpcAddr)
 	checkError(err)
-	pingConn, err := net.ListenUDP("udp", kvNodeAddr)
-	checkError(err)
-
-	// Clean up the connection when we exit main().
-	defer pingConn.Close()
-
-	// Setup key-value store and register service.
-	kvservice := new(NodeService)
-	rpc.Register(kvservice)
-	l, e := net.Listen("tcp", clientsIpPort)
-	checkError(e)
-	myRpc = clientsIpPort
-	// Clean up the connection when we exit main().
-	defer l.Close()
-
+	defer myRpcListener.Close()
+	// infinite loop to serve RPC connections
 	for {
-		nodeConn, err := l.Accept()
+		conn, err := myRpcListener.Accept()
 		checkError(err)
-		go rpc.ServeConn(nodeConn)
+		go rpc.ServeConn(conn)
 	}
 }
 
