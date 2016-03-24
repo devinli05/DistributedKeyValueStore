@@ -25,7 +25,7 @@ func New(num int, nodes []string, fun Hash) *Ring {
 		nodeKeys: make(map[string][]int),
 	}
 	if ring.hash == nil {
-		ring.hash = crc32.ChecksumIEEE
+		ring.hash = crc32.ChecksumIEEE //default hash function
 	}
 	for k := 0; k < ring.portions; k++ {
 		hash := int(ring.hash([]byte(strconv.Itoa(k))))

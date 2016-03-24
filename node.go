@@ -118,42 +118,10 @@ func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
 
 /*
 func (ns *NodeService) Remove(args *PutArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kvmap.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	val := kvmap[args.Key]
-	if val == unavail {
-		reply.Val = unavail
-	} else {
-		kvmap[args.Key] = args.Val
-		reply.Val = ""
-	}
-	fmt.Println("node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
-	LogLocalEvent("Remove Function - node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
-	return nil
 }
 
 // TESTSET
 func (kvs *KeyValService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
-	// Acquire mutex for exclusive access to kv nodes.
-	kvMutex.Lock()
-	// Defer mutex unlock to (any) function exit.
-	defer kvMutex.Unlock()
-	val, contains := kvmap[args.Key]
-	if contains {
-		if args.TestVal == val {
-			kvmap[args.Key] = args.NewVal
-			reply.Val = args.NewVal
-		} else {
-			reply.Val = val
-		}
-	} else {
-		reply.Val = ""
-	}
-
-	LogLocalEvent("Testset Function - Key:" + args.Key + " Old Value: " + args.TestVal + " New Value: " + args.NewVal + " Return Value: " + reply.Val)
-	return nil
 }
 */
 // ----------------------------------------
@@ -163,6 +131,7 @@ func (kvs *KeyValService) TestSet(args *NodeTestSetArgs, reply *ValReply) error 
 // Configuration
 // Name - Must be unique
 // BindAddr & BindPort - Address and Port to use for Gossip communication
+// BootstrapAddr - Address of seed node known to all nodes
 
 func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr string) {
 	var config = memberlist.DefaultLocalConfig()
@@ -348,10 +317,6 @@ func main() {
 	// Used for GoVector Logging
 	go receiveMessagesLog(myLogAddr)
 
-	/*kvnodeRpcList := make([]string, 0)
-	for _, id := range nodeIdList {
-		kvnodeRpcList = append(kvnodeRpcList, nodesRpcAddrMap[id])
-	}*/
 	numberPortions := 1024
 	var hashFunction chash.Hash = nil
 	consHash = chash.New(numberPortions, nodeIdList, hashFunction)
