@@ -261,7 +261,7 @@ func errorCheck(err error, message string) {
 
 func LogLocalEvent(msg string) {
 	LogMutex.Lock()
-	Logger.LogLocalEvent("Message Says: " + msg)
+	Logger.LogLocalEvent(msg)
 	LogMutex.Unlock()
 }
 
