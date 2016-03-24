@@ -14,7 +14,7 @@ import (
 
 	"./chash"
 	"./orset"
-
+	"github.com/arcaneiceman/GoVector/govec"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -77,6 +77,7 @@ func (ns *NodeService) Get(args *NodeGetArgs, reply *ValReply) error {
 	//reply.Val = ""
 	reply.Val = ors.Get(args.Key)
 	fmt.Println(reply.Val)
+	LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
 	return nil
 }
 
@@ -87,6 +88,7 @@ func (ns *NodeService) Put(args *NodePutArgs, reply *ValReply) error {
 	defer kvMutex.Unlock()
 	ors.Add(args.Key, args.Val)
 	reply.Val = "Success"
+	LogLocalEvent("Put Function - Key: " + args.Key + " Reply: " + reply.Val)
 	return nil
 }
 
@@ -103,6 +105,7 @@ func (ns *NodeService) Remove(args *NodePutArgs, reply *ValReply) error {
 		reply.Val = ""
 	}
 	fmt.Println("node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
+	LogLocalEvent("Remove Function - node " + nodeId + " remove key: " + args.Key + " val: " + args.Val)
 	return nil
 }
 
@@ -123,20 +126,18 @@ func (kvs *NodeService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
 	} else {
 		reply.Val = ""
 	}
+
+	LogLocalEvent("Testset Function - Key:" + args.Key + " Old Value: " + args.TestVal + " New Value: " + args.NewVal + " Return Value: " + reply.Val)
 	return nil
 }
 
 // ----------------------------------------
-//				GOSSIP PROTOCOL
+// GOSSIP PROTOCOL
 // ----------------------------------------
 
 // Configuration
 // Name - Must be unique
 // BindAddr & BindPort - Address and Port to use for Gossip communication
-//	var config = memberlist.DefaultLocalConfig()
-//	config.Name = "Node" + gossipID
-//	config.BindAddr = gossipAddr
-//	config.BindPort, err = strconv.Atoi(gossipPort)
 
 func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr string) {
 	var config = memberlist.DefaultLocalConfig()
@@ -167,6 +168,112 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 // ----------------------------------------
 // ----------------------------------------
 
+// ----------------------------------------
+// GoVector Logging
+// ----------------------------------------
+var Logger *govec.GoLog
+var LogMutex *sync.Mutex
+
+//Msg is the message sent over the network
+//Msg is capitalized so GoVecs encoder can acess it
+//Furthermore its variables are capitalized to make them public
+type Msg struct {
+	Content, RealTimestamp string
+}
+
+func (m Msg) String() string {
+	return "content: " + m.Content + "\ntime: " + m.RealTimestamp
+}
+
+// Helper Function to sendMsgLog
+// Opens a connection to remoteAddr from localAddr
+// returns that connection
+func openConnection(localAddr, remoteAddr string) *net.UDPConn {
+
+	_, port, err := net.SplitHostPort(localAddr)
+	errorCheck(err, "Something is Wrong with the given local address format")
+
+	port = ":" + port
+
+	laddr, err := net.ResolveUDPAddr("udp", port)
+	errorCheck(err, "Something is Wrong with the given local address")
+
+	raddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+	errorCheck(err, "Something is Wrong with the given remote address")
+
+	conn, err := net.DialUDP("udp", laddr, raddr)
+	errorCheck(err, "Something has gone wrong in the initial connection")
+
+	return conn
+}
+
+// Open a connection to listeningAddr from sendingAddr
+// Log msg then send, close connection
+// Format for addresses is "127.0.0.1:8080"
+func sendMsgLog(sendingAddr string, listeningAddr string, msg string) {
+
+	outgoingMessage := Msg{msg, time.Now().String()}
+
+	LogMutex.Lock()
+	outBuf := Logger.PrepareSend("Sending message to server", outgoingMessage)
+	LogMutex.Unlock()
+
+	conn := openConnection(sendingAddr, listeningAddr)
+
+	_, err := conn.Write(outBuf)
+
+	errorCheck(err, "Problem with Sending String: "+outgoingMessage.String())
+
+	conn.Close()
+	return
+}
+
+// An Infinite Loop
+// Format for listeningAddr is "127.0.0.1:8080"
+// Opens a connection on listeningAddr, waits for a udp packet
+// Upon receiving a packet, Logs the packet's message and
+// waits for another packet
+func receiveMessagesLog(listeningAddr string) {
+	var buf [512]byte
+
+	conn, err := net.ListenPacket("udp", listeningAddr)
+	errorCheck(err, "Problem Listening for Packets")
+
+	// Make sure connection is properly closed on program exit
+	defer conn.Close()
+
+	// Infinite Loop
+	for {
+		conn.ReadFrom(buf[0:])
+		incommingMessage := new(Msg)
+
+		LogMutex.Lock()
+		Logger.UnpackReceive("Received Message", buf[0:], &incommingMessage)
+		LogMutex.Unlock()
+
+		LogLocalEvent("Message Says: " + incommingMessage.String())
+	}
+
+	return
+}
+
+func errorCheck(err error, message string) {
+
+	if err != nil {
+		fmt.Println(message)
+		fmt.Printf("%s\n", err)
+	}
+}
+
+func LogLocalEvent(msg string) {
+	LogMutex.Lock()
+	Logger.LogLocalEvent("Message Says: " + msg)
+	LogMutex.Unlock()
+}
+
+// ----------------------------------------
+// ----------------------------------------
+
 // Main server loop.
 func main() {
 	// Parse args.
@@ -177,21 +284,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	//clientsIpPort := os.Args[1]
-	//kvnodesIpPort := os.Args[2]
 	replicationFactor := os.Args[1]
 	gossipID := os.Args[2]
-	//gossipAddr := os.Args[5]
-	//gossipPort := os.Args[6]
 
 	nodeId := gossipID
 	config, err := ioutil.ReadFile("./config.json")
 	checkError(err)
-	//fmt.Printf("%s\n", string(config))
 	var nodes map[string]string
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
-	//fmt.Printf("Results: %v\n", nodes)
+
+	// Set up GoVector Logging
+	Logger = govec.Initialize(nodeId, nodeId)
+	LogMutex = &sync.Mutex{}
 
 	bootstrapAddr := nodes["0"]
 	nodeIpPort := ""
@@ -205,10 +310,9 @@ func main() {
 	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
 	clientsIpPort := gossipAddr.IP.String() + ":666" + nodeId
 	kvnodesIpPort := gossipAddr.IP.String() + ":555" + nodeId
-	//nodeKvnodeAddr, err := net.ResolveTCPAddr("tcp", nodeIpPort)
-	//checkError(err)
-	//nodeClientAddr, err := net.ResolveTCPAddr("tcp", nodeIpPort)
-	//checkError(err)
+
+	// Used for GoVector Logging
+	go receiveMessagesLog(gossipAddr.IP.String() + ":777" + nodeId)
 
 	nodeRpcList := []string{"127.0.0.1:5550", "127.0.0.1:5551", "127.0.0.1:5552", "127.0.0.1:5553"}
 	consHash := chash.New(1024, nodeRpcList, nil)
@@ -224,6 +328,7 @@ func main() {
 	checkError(err)
 	pingConn, err := net.ListenUDP("udp", kvNodeAddr)
 	checkError(err)
+
 	// Clean up the connection when we exit main().
 	defer pingConn.Close()
 
@@ -232,8 +337,10 @@ func main() {
 	rpc.Register(kvservice)
 	l, e := net.Listen("tcp", clientsIpPort)
 	checkError(e)
+
 	// Clean up the connection when we exit main().
 	defer l.Close()
+
 	for {
 		nodeConn, err := l.Accept()
 		checkError(err)
