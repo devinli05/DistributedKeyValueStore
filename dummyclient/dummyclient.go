@@ -192,8 +192,8 @@ func main() {
 	//	kvVal.Val = ""
 	// Put test
 	putArgs := PutArgs{
-		Key: "test-key",
-		Val: "testing 1 2 3"}
+		Key: "test-key1",
+		Val: "testing 1"}
 	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Put Call to "+kvAddr)
 	err = kvService.Call("NodeService.Put", putArgs, &kvVal)
 	checkError(err)
@@ -202,8 +202,8 @@ func main() {
 	//	kvVal.Val = ""
 	// Put test
 	putArgs = PutArgs{
-		Key: "test-key",
-		Val: "testing 1 2 3 4"}
+		Key: "test-key2",
+		Val: "testing 2"}
 
 	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Put Call to "+kvAddr)
 	err = kvService.Call("NodeService.Put", putArgs, &kvVal)
@@ -212,7 +212,14 @@ func main() {
 
 	//	kvVal.Val = ""
 	getArgs := GetArgs{
-		Key: "test-key"}
+		Key: "test-key1"}
+	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Get Call to "+kvAddr)
+	err = kvService.Call("NodeService.Get", getArgs, &kvVal)
+	checkError(err)
+	fmt.Println("KV.get(" + getArgs.Key + ") = " + kvVal.Val)
+
+	getArgs = GetArgs{
+		Key: "test-key2"}
 	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Get Call to "+kvAddr)
 	err = kvService.Call("NodeService.Get", getArgs, &kvVal)
 	checkError(err)
