@@ -4,12 +4,12 @@
 package orset
 
 import (
-	"fmt"
 	"time"
 )
 
 type ORSet struct {
-	addMap    map[string]map[string]string
+	// [KEY]--> [TIMESTAMP]---> [Value]
+	addMap    map[string]map[string]string  // Map of Keys to a Map of Timestamps that map to a value
 	removeMap map[string]map[string]string
 }
 
@@ -21,7 +21,10 @@ func NewORSet() *ORSet {
 }
 
 func (o *ORSet) Add(key string, value string) {
-	// if the Map already contains the value
+	// clean up maps
+	cleanUpMaps(o, key)
+
+	// if the Map already contains the key, set timestamps
 	if m, ok := o.addMap[key]; ok {
 		timestamp := time.Now().Format(time.StampNano)
 		m[timestamp] = value
@@ -32,21 +35,23 @@ func (o *ORSet) Add(key string, value string) {
 		m[timestamp] = value
 		o.addMap[key] = m
 	}
-	fmt.Println(o)
 }
 
 func (o *ORSet) Remove(key string, value string) {
-	r, ok := o.removeMap[key]
-	if !ok {
-		r = make(map[string]string)
-	}
-
-	if m, ok := o.addMap[key]; ok {
-		for timestamp, _ := range m {
-			r[timestamp] = value
+	// if key is in the add Map, copy it to the remove map 
+	if am, ok := o.addMap[key]; ok {
+		// check if the key is already in remove Map
+		rm, ok := o.removeMap[key]
+		if !ok {
+			rm = make(map[string]string)
 		}
+		for timestamp, v := range am {
+			if v == value {
+				rm[timestamp] = v
+			}
+		}
+	o.removeMap[key] = rm	
 	}
-	o.removeMap[key] = r
 }
 
 func (o *ORSet) Contains(key string) bool {
@@ -70,24 +75,23 @@ func (o *ORSet) Contains(key string) bool {
 }
 
 func (o *ORSet) Get(key string) string {
-	var counter int
-	m, ok := o.addMap[key]
+
+	var value string
+	// get a valid value from addMap for this key
+	am, ok := o.addMap[key]
 	if ok {
-		total := len(m)
-		for timestamp, x := range m {
-			if counter < total-1 {
-				delete(m, timestamp)
-				counter++
-				continue
-			} else {
-				return x
-			}
+		for _, v := range am {
+			value = v
 		}
+		return value
 	}
+	// else return nothing
 	return ""
 }
 
+// merges remote ORSet into local set
 func (local *ORSet) Merge(remote *ORSet) {
+
 	for key, r := range remote.addMap {
 		l, ok := local.addMap[key]
 		if ok {
@@ -113,4 +117,27 @@ func (local *ORSet) Merge(remote *ORSet) {
 }
 
 // ------------------------------------
+// HELPERS
 // ------------------------------------
+// remove all values that are in both addMap and removeMap
+func cleanUpMaps(o *ORSet, key string) {
+	// go through add and remove Maps and delete similar timestamps
+	rm, ok := o.removeMap[key] 
+	if ok {
+		am, ok := o.addMap[key]
+		if ok {
+			// go through all timestamps in removeMap and delete in both maps
+			for ts, _ := range rm {
+				delete(am, ts)
+				delete(rm, ts)
+			}
+		}
+	}
+	// Remove empty map values
+	if _, ok := o.removeMap[key]; !ok {
+		delete(o.removeMap, key)
+	}
+	if _, ok := o.addMap[key]; !ok {
+		delete(o.addMap, key)
+	}
+}
