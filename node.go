@@ -77,29 +77,27 @@ func getOwnerRpcClient(ownerRpcAddr string) *rpc.Client {
 
 func (ns *NodeService) Get(args *GetArgs, reply *ValReply) error {
 	var err error = nil
-	ownerRpcAddr := consHash.Find(args.Key)
+	ownerId := consHash.Find(args.Key)
+	ownerRpcAddr := nodesRpcAddrMap[ownerId]
 	//ownerRpcAddr := "127.0.0.1:6661"
 	if strings.EqualFold(ownerRpcAddr, nodesRpcAddrMap[nodeId]) {
 		kvMutex.Lock()
 		defer kvMutex.Unlock()
 		reply.Val = ors.Get(args.Key)
-		LogLocalEvent("Get Function - Key: " + args.Key + " Reply: " + reply.Val)
+		//LogLocalEvent("Get Key: " + args.Key + " Reply: " + reply.Val)
 	} else {
-		ownerRpcClient, contains := rpcAddrRpcCliMap[ownerRpcAddr]
-		if !contains {
-			ownerRpcClient, err = rpc.Dial("tcp", ownerRpcAddr)
-			checkError(err)
-			rpcAddrRpcCliMap[ownerRpcAddr] = ownerRpcClient
-		}
-		err = ownerRpcClient.Call("NodeService.Get", args, reply)
+		err = getOwnerRpcClient(ownerRpcAddr).Call("NodeService.Get", args, reply)
 		checkError(err)
+		localUdpAddr := strings.Split(govecUdpAddrMap[nodeId], ":")[0] + ":0"
+		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Get Request "+args.Key)
 	}
 	return err
 }
 
 func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
 	var err error = nil
-	ownerRpcAddr := consHash.Find(args.Key)
+	ownerId := consHash.Find(args.Key)
+	ownerRpcAddr := nodesRpcAddrMap[ownerId]
 	//ownerRpcAddr := "127.0.0.1:6661"
 	fmt.Println(" owner: " + ownerRpcAddr)
 	fmt.Println("whoami: " + nodesRpcAddrMap[nodeId])
@@ -108,16 +106,12 @@ func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
 		defer kvMutex.Unlock()
 		ors.Add(args.Key, args.Val)
 		reply.Val = "Success"
-		LogLocalEvent("Put Function - Key: " + args.Key + " Reply: " + reply.Val)
+		//LogLocalEvent("Put Key: " + args.Key + " Value: " + args.Val)
 	} else {
-		ownerRpcClient, contains := rpcAddrRpcCliMap[ownerRpcAddr]
-		if !contains {
-			ownerRpcClient, err = rpc.Dial("tcp", ownerRpcAddr)
-			checkError(err)
-			rpcAddrRpcCliMap[ownerRpcAddr] = ownerRpcClient
-		}
-		err = ownerRpcClient.Call("NodeService.Put", args, reply)
+		err = getOwnerRpcClient(ownerRpcAddr).Call("NodeService.Put", args, reply)
 		checkError(err)
+		localUdpAddr := strings.Split(govecUdpAddrMap[nodeId], ":")[0] + ":0"
+		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Put Request "+args.Key+":"+args.Val)
 	}
 	return err
 }
@@ -337,12 +331,11 @@ func main() {
 	checkError(err)
 	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
 
-	nodeIdList := make([]string, 0)
+	nodeIdList := strings.Split(nodes["list"], " ")
 	govecUdpAddrMap = make(map[string]string)
 	nodesRpcAddrMap = make(map[string]string)
 	rpcAddrRpcCliMap = make(map[string]*rpc.Client)
 	for id := range nodes {
-		nodeIdList = append(nodeIdList, id)
 		govecUdpAddrMap[id] = gossipAddr.IP.String() + ":777" + id
 		nodesRpcAddrMap[id] = gossipAddr.IP.String() + ":666" + id
 	}
@@ -355,15 +348,13 @@ func main() {
 	// Used for GoVector Logging
 	go receiveMessagesLog(myLogAddr)
 
-	//kvnodeRpcList := make([]string, 0)
-	//for id := range nodes {
-	//	kvnodeRpcList = append(kvnodeRpcList, nodesRpcAddrMap[id])
-	//}
-	kvnodeRpcList := []string{"127.0.0.1:6660", "127.0.0.1:6661", "127.0.0.1:6662", "127.0.0.1:6663"}
-	numberPortions := 8
+	/*kvnodeRpcList := make([]string, 0)
+	for _, id := range nodeIdList {
+		kvnodeRpcList = append(kvnodeRpcList, nodesRpcAddrMap[id])
+	}*/
+	numberPortions := 1024
 	var hashFunction chash.Hash = nil
-	consHash = chash.New(numberPortions, kvnodeRpcList, hashFunction)
-	fmt.Println(consHash)
+	consHash = chash.New(numberPortions, nodeIdList, hashFunction)
 	ors = orset.NewORSet()
 
 	repFactor, err = strconv.Atoi(replicationFactor)
