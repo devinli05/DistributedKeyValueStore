@@ -14,7 +14,7 @@ package main
 import (
 	"fmt"
 	"net"
-	"net/rpc"
+	//"net/rpc"
 	"os"
 	"regexp"
 	"strings"
@@ -218,21 +218,43 @@ func main() {
 	fmt.Println(nodeIP)
 
 	// Connect to the KV-service via RPC.
-	kvService, err := rpc.Dial("tcp", "localhost:666"+nodeId)
-	checkError(err)
+	//kvService, err := rpc.Dial("tcp", "localhost:666"+nodeId)
+	//checkError(err)
 
 	// Use kvVal for all RPC replies.
-	var kvVal ValReply
+	//var kvVal ValReply
 
 	//	kvVal.Val = ""
 	// Put test
-	putArgs := PutArgs{
-		Key: "test-key1",
-		Val: "testing 1"}
-	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Put Call to "+kvAddr)
-	err = kvService.Call("NodeService.Put", putArgs, &kvVal)
-	checkError(err)
-	fmt.Println("KV.put(" + putArgs.Key + "," + putArgs.Val + ") = " + kvVal.Val)
+	putArgs := udpComm{
+		Type:    "Put",
+		Key:     "test-key1",
+		Val:     "testing",
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Request",
+	}
+
+	fmt.Println("Connect to: " + nodeIP + ":444" + nodeId)
+	packet := Logger.PrepareSend("Send Get Request", putArgs)
+	conn := openConnection("localhost:9999", nodeIP+":444"+nodeId)
+	conn.Write(packet)
+	conn.Close()
+
+	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+	conn, _ = net.ListenUDP("udp", laddr)
+	fmt.Println("Wait for response")
+	pack, _ := readMessage(conn)
+	fmt.Println(pack)
+	conn.Close()
+
+	//putArgs := PutArgs{
+	//	Key: "test-key1",
+	//	Val: "testing 1"}
+	//sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Put Call to "+kvAddr)
+	//err = kvService.Call("NodeService.Put", putArgs, &kvVal)
+	//checkError(err)
+	//fmt.Println("KV.put(" + putArgs.Key + "," + putArgs.Val + ") = " + kvVal.Val)
 
 	//	//	kvVal.Val = ""
 	//	// Put test
@@ -264,15 +286,15 @@ func main() {
 
 	//sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Get Call to "+kvAddr)
 	fmt.Println("Connect to: " + nodeIP + ":444" + nodeId)
-	packet := Logger.PrepareSend("Send Get Request", getArgs)
-	conn := openConnection("localhost:9999", nodeIP+":444"+nodeId)
+	packet = Logger.PrepareSend("Send Get Request", getArgs)
+	conn = openConnection("localhost:9999", nodeIP+":444"+nodeId)
 	conn.Write(packet)
 	conn.Close()
 
-	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+	laddr, _ = net.ResolveUDPAddr("udp", "localhost:9999")
 	conn, _ = net.ListenUDP("udp", laddr)
 	fmt.Println("Wait for response")
-	pack, _ := readMessage(conn)
+	pack, _ = readMessage(conn)
 	fmt.Println(pack)
 
 	//err = kvService.Call("NodeService.Get", getArgs, &kvVal)

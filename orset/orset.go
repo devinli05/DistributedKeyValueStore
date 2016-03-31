@@ -9,7 +9,7 @@ import (
 
 type ORSet struct {
 	// [KEY]--> [TIMESTAMP]---> [Value]
-	addMap    map[string]map[string]string  // Map of Keys to a Map of Timestamps that map to a value
+	addMap    map[string]map[string]string // Map of Keys to a Map of Timestamps that map to a value
 	removeMap map[string]map[string]string
 }
 
@@ -20,7 +20,7 @@ func NewORSet() *ORSet {
 	}
 }
 
-func (o *ORSet) Add(key string, value string) {
+func (o *ORSet) Add(key string, value string) string {
 	// clean up maps
 	cleanUpMaps(o, key)
 
@@ -28,17 +28,19 @@ func (o *ORSet) Add(key string, value string) {
 	if m, ok := o.addMap[key]; ok {
 		timestamp := time.Now().Format(time.StampNano)
 		m[timestamp] = value
+		return "Success"
 	} else {
 		// otherwise add the value to the map
 		m := make(map[string]string)
 		timestamp := time.Now().Format(time.StampNano)
 		m[timestamp] = value
 		o.addMap[key] = m
+		return "Success"
 	}
 }
 
 func (o *ORSet) Remove(key string, value string) {
-	// if key is in the add Map, copy it to the remove map 
+	// if key is in the add Map, copy it to the remove map
 	if am, ok := o.addMap[key]; ok {
 		// check if the key is already in remove Map
 		rm, ok := o.removeMap[key]
@@ -50,7 +52,7 @@ func (o *ORSet) Remove(key string, value string) {
 				rm[timestamp] = v
 			}
 		}
-	o.removeMap[key] = rm	
+		o.removeMap[key] = rm
 	}
 }
 
@@ -122,7 +124,7 @@ func (local *ORSet) Merge(remote *ORSet) {
 // remove all values that are in both addMap and removeMap
 func cleanUpMaps(o *ORSet, key string) {
 	// go through add and remove Maps and delete similar timestamps
-	rm, ok := o.removeMap[key] 
+	rm, ok := o.removeMap[key]
 	if ok {
 		am, ok := o.addMap[key]
 		if ok {

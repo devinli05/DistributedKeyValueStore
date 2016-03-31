@@ -149,14 +149,22 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 	} else if packet.Type == "Remove" {
 
 	} else if packet.Type == "Put" {
-		//		retVal := Putudp(packet)
+		fmt.Println("Got a PUT packet")
+		retVal := Putudp(packet)
+		fmt.Println("Return Value: " + retVal.Val)
+		udpPortMutex.Lock()
+		fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+		conn := openConnection(nodeUDPAddr, retAddr.String())
+		fmt.Println("Prepare to send response, status: " + retVal.Status)
+		LogMutex.Lock()
+		fmt.Println("Sending : " + retVal.Type)
+		outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
+		LogMutex.Unlock()
+		fmt.Println("Sending Response to: " + retAddr.String())
 
-		//		udpPortMutex.Lock()
-		//		conn := openConnection(nodeUDPAddr, retAddr.String())
-		//		conn.Write(retVal)
-		//		conn.Close()
-		//		udpPortMutex.Unlock()
-
+		conn.WriteTo(outBuf, retAddr)
+		conn.Close()
+		udpPortMutex.Unlock()
 	} else {
 
 	}
@@ -279,6 +287,71 @@ func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
 		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Put Request "+args.Key+":"+args.Val)
 	}
 	return err
+}
+
+func Putudp(packet *udpComm) *udpComm {
+
+	ownerId := consHash.Find(packet.Key)
+	ownerUDPAddr := nodesUDPAddrMap[ownerId]
+
+	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
+		fmt.Println("I " + nodeId + " can store the value")
+		kvMutex.Lock()
+		defer kvMutex.Unlock()
+		var retVal = ors.Add(packet.Key, packet.Val)
+		fmt.Println("Put value: " + packet.Key)
+
+		LogLocalEvent("Local Put returned: " + retVal)
+
+		fmt.Println("Released Log Lock")
+		put := &udpComm{
+			Type:    "Put",
+			Key:     packet.Key,
+			Val:     packet.Val,
+			TestVal: "",
+			NewVal:  "",
+			Status:  "Success",
+		}
+		fmt.Println("Returned from Putudp")
+		return put
+
+	} else {
+		fmt.Println("Got requets for Packet I (" + nodeId + ") can't have")
+		put := &udpComm{
+			Type:    "Put",
+			Key:     packet.Key,
+			Val:     packet.Val,
+			TestVal: "",
+			NewVal:  "",
+			Status:  "Storing",
+		}
+		LogMutex.Lock()
+		msg := Logger.PrepareSend("Sending Message", put)
+		LogMutex.Unlock()
+		udpPortMutex.Lock()
+		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
+
+		laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
+		errorCheck(err, "Something is Wrong with the given local address")
+		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
+
+		conn.WriteTo(msg, laddr)
+		//conn.Write(msg)
+
+		conn.Close()
+		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
+
+		fmt.Println("Wait for response")
+		packet, _ := readMessage(conn)
+		fmt.Println("Returnd to putUDP function after got a packet")
+		conn.Close()
+		udpPortMutex.Unlock()
+		fmt.Println("Got a response")
+		//incomingMessage := new(udpComm)
+		//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
+
+		return packet
+	}
 }
 
 //func Putudp(packet udpComm) {
