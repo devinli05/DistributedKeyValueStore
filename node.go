@@ -71,6 +71,9 @@ var nodesRpcAddrMap map[string]string
 var nodesUDPAddrMap map[string]string
 var rpcAddrRpcCliMap map[string]*rpc.Client
 
+var nodes map[string]string
+var nodeIdList []string
+
 const rpcTimeout time.Duration = time.Duration(500) * time.Millisecond
 
 // Reserved value in the service that is used to indicate that the kv-node
@@ -150,21 +153,39 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 
 	} else if packet.Type == "Put" {
 		fmt.Println("Got a PUT packet")
-		retVal := Putudp(packet)
-		fmt.Println("Return Value: " + retVal.Val)
-		udpPortMutex.Lock()
-		fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
-		conn := openConnection(nodeUDPAddr, retAddr.String())
-		fmt.Println("Prepare to send response, status: " + retVal.Status)
-		LogMutex.Lock()
-		fmt.Println("Sending : " + retVal.Type)
-		outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
-		LogMutex.Unlock()
-		fmt.Println("Sending Response to: " + retAddr.String())
+		if strings.EqualFold(packet.Status, "Store") {
+			retVal := Putudp(packet)
+			fmt.Println("Return Value: " + retVal.Val)
+			udpPortMutex.Lock()
+			fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+			conn := openConnection(nodeUDPAddr, retAddr.String())
+			fmt.Println("Prepare to send response, status: " + retVal.Status)
+			LogMutex.Lock()
+			fmt.Println("Sending : " + retVal.Type)
+			outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
+			LogMutex.Unlock()
+			fmt.Println("Sending Response to: " + retAddr.String())
 
-		conn.WriteTo(outBuf, retAddr)
-		conn.Close()
-		udpPortMutex.Unlock()
+			conn.WriteTo(outBuf, retAddr)
+			conn.Close()
+			udpPortMutex.Unlock()
+		} else {
+			retVal := replicate(packet)
+			fmt.Println("Return Value for replicate: " + retVal.Val)
+			udpPortMutex.Lock()
+			fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+			conn := openConnection(nodeUDPAddr, retAddr.String())
+			fmt.Println("Prepare to send response, status: " + retVal.Status)
+			LogMutex.Lock()
+			fmt.Println("Sending : " + retVal.Type)
+			outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
+			LogMutex.Unlock()
+			fmt.Println("Sending Response to: " + retAddr.String())
+
+			conn.WriteTo(outBuf, retAddr)
+			conn.Close()
+			udpPortMutex.Unlock()
+		}
 	} else {
 
 	}
@@ -289,70 +310,135 @@ func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
 	return err
 }
 
+func replicate(packet *udpComm) *udpComm {
+	fmt.Println("Replicating key and value")
+	ownerId := consHash.Find(packet.Key)
+	//ownerUDPAddr := nodesUDPAddrMap[ownerId]
+	ID, _ := strconv.Atoi(ownerId)
+	var counter = 0
+	var i = 0
+	fmt.Println(nodeIdList)
+	put := &udpComm{
+		Type:    "Put",
+		Key:     packet.Key,
+		Val:     packet.Val,
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Store",
+	}
+	var response *udpComm
+	fmt.Println("Before loop")
+	for counter < repFactor {
+		fmt.Println("Current counter: ")
+		fmt.Println(counter)
+		fixed := ID + i
+		//HELLO := nodeList[fixed]
+		//fmt.Println(HELLO)
+		//fmt.Println(nodeList)
+		if ID+i < len(nodeIdList) {
+			ownerUDPAddr := nodesUDPAddrMap[nodeIdList[fixed]]
+			LogMutex.Lock()
+			msg := Logger.PrepareSend("Sending Message", put)
+			LogMutex.Unlock()
+			udpPortMutex.Lock()
+			conn := openConnection(nodeUDPAddr, ownerUDPAddr)
+
+			laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
+			errorCheck(err, "Something is Wrong with the given local address")
+			fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
+
+			conn.WriteTo(msg, laddr)
+			//conn.Write(msg)
+
+			conn.Close()
+			conn = openConnection(nodeUDPAddr, ownerUDPAddr)
+
+			fmt.Println("Wait for response")
+			packet, _ := readMessage(conn)
+			response = packet
+			fmt.Println("Returnd to putUDP function after got a packet")
+			conn.Close()
+			udpPortMutex.Unlock()
+			fmt.Println("Got a response")
+			//incomingMessage := new(udpComm)
+			//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
+			i++
+			counter++
+			if counter == repFactor-1 {
+				break
+			}
+		} else {
+			ID = 0
+			i = 0
+		}
+	}
+	fmt.Println("Done replicating")
+	fmt.Println(response)
+	return response
+}
+
 func Putudp(packet *udpComm) *udpComm {
 
-	ownerId := consHash.Find(packet.Key)
-	ownerUDPAddr := nodesUDPAddrMap[ownerId]
+	//	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
+	//		fmt.Println("I " + nodeId + " can store the value")
+	kvMutex.Lock()
+	defer kvMutex.Unlock()
+	var retVal = ors.Add(packet.Key, packet.Val)
+	fmt.Println("Put value: " + packet.Key)
 
-	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
-		fmt.Println("I " + nodeId + " can store the value")
-		kvMutex.Lock()
-		defer kvMutex.Unlock()
-		var retVal = ors.Add(packet.Key, packet.Val)
-		fmt.Println("Put value: " + packet.Key)
+	LogLocalEvent("Local Put returned: " + retVal)
 
-		LogLocalEvent("Local Put returned: " + retVal)
-
-		fmt.Println("Released Log Lock")
-		put := &udpComm{
-			Type:    "Put",
-			Key:     packet.Key,
-			Val:     packet.Val,
-			TestVal: "",
-			NewVal:  "",
-			Status:  "Success",
-		}
-		fmt.Println("Returned from Putudp")
-		return put
-
-	} else {
-		fmt.Println("Got requets for Packet I (" + nodeId + ") can't have")
-		put := &udpComm{
-			Type:    "Put",
-			Key:     packet.Key,
-			Val:     packet.Val,
-			TestVal: "",
-			NewVal:  "",
-			Status:  "Storing",
-		}
-		LogMutex.Lock()
-		msg := Logger.PrepareSend("Sending Message", put)
-		LogMutex.Unlock()
-		udpPortMutex.Lock()
-		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
-
-		laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
-		errorCheck(err, "Something is Wrong with the given local address")
-		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
-
-		conn.WriteTo(msg, laddr)
-		//conn.Write(msg)
-
-		conn.Close()
-		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
-
-		fmt.Println("Wait for response")
-		packet, _ := readMessage(conn)
-		fmt.Println("Returnd to putUDP function after got a packet")
-		conn.Close()
-		udpPortMutex.Unlock()
-		fmt.Println("Got a response")
-		//incomingMessage := new(udpComm)
-		//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
-
-		return packet
+	fmt.Println("Released Log Lock")
+	put := &udpComm{
+		Type:    "Put",
+		Key:     packet.Key,
+		Val:     packet.Val,
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Success",
 	}
+	fmt.Println("Returned from Putudp")
+	return put
 }
+
+//	} // else {
+//		fmt.Println("Got requets for Packet I (" + nodeId + ") can't have")
+//		put := &udpComm{
+//			Type:    "Put",
+//			Key:     packet.Key,
+//			Val:     packet.Val,
+//			TestVal: "",
+//			NewVal:  "",
+//			Status:  "Storing",
+//		}
+//		LogMutex.Lock()
+//		msg := Logger.PrepareSend("Sending Message", put)
+//		LogMutex.Unlock()
+//		udpPortMutex.Lock()
+//		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
+
+//		laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
+//		errorCheck(err, "Something is Wrong with the given local address")
+//		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
+
+//		conn.WriteTo(msg, laddr)
+//		//conn.Write(msg)
+
+//		conn.Close()
+//		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
+
+//		fmt.Println("Wait for response")
+//		packet, _ := readMessage(conn)
+//		fmt.Println("Returnd to putUDP function after got a packet")
+//		conn.Close()
+//		udpPortMutex.Unlock()
+//		fmt.Println("Got a response")
+//		//incomingMessage := new(udpComm)
+//		//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
+
+//		return packet
+//	}
+//}
 
 //func Putudp(packet udpComm) {
 
@@ -569,7 +655,6 @@ func main() {
 	nodeId = gossipID
 	config, err := ioutil.ReadFile("./config.json")
 	checkError(err)
-	var nodes map[string]string
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
 
@@ -585,7 +670,7 @@ func main() {
 	checkError(err)
 	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
 
-	nodeIdList := strings.Split(nodes["list"], " ")
+	nodeIdList = strings.Split(nodes["list"], " ")
 	govecUdpAddrMap = make(map[string]string)
 	nodesRpcAddrMap = make(map[string]string)
 	nodesUDPAddrMap = make(map[string]string)
