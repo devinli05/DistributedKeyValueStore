@@ -217,15 +217,7 @@ func main() {
 	nodeIP = strings.Replace(nodeIP, ":444", "", -1)
 	fmt.Println(nodeIP)
 
-	// Connect to the KV-service via RPC.
-	//kvService, err := rpc.Dial("tcp", "localhost:666"+nodeId)
-	//checkError(err)
-
-	// Use kvVal for all RPC replies.
-	//var kvVal ValReply
-
-	//	kvVal.Val = ""
-	// Put test
+	// Test Put Request
 	putArgs := udpComm{
 		Type:    "Put",
 		Key:     "test-key1",
@@ -248,33 +240,7 @@ func main() {
 	fmt.Println(pack)
 	conn.Close()
 
-	//putArgs := PutArgs{
-	//	Key: "test-key1",
-	//	Val: "testing 1"}
-	//sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Put Call to "+kvAddr)
-	//err = kvService.Call("NodeService.Put", putArgs, &kvVal)
-	//checkError(err)
-	//fmt.Println("KV.put(" + putArgs.Key + "," + putArgs.Val + ") = " + kvVal.Val)
-
-	//	//	kvVal.Val = ""
-	//	// Put test
-	//	putArgs = PutArgs{
-	//		Key: "test-key2",
-	//		Val: "testing 2"}
-
-	//	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Put Call to "+kvAddr)
-	//	err = kvService.Call("NodeService.Put", putArgs, &kvVal)
-	//	checkError(err)
-	//	fmt.Println("KV.put(" + putArgs.Key + "," + putArgs.Val + ") = " + kvVal.Val)
-
-	//	//	kvVal.Val = ""
-	//	getArgs := GetArgs{
-	//		Key: "test-key1"}
-	//	sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Get Call to "+kvAddr)
-	//	err = kvService.Call("NodeService.Get", getArgs, &kvVal)
-	//	checkError(err)
-	//	fmt.Println("KV.get(" + getArgs.Key + ") = " + kvVal.Val)
-
+	// Test Get Request
 	getArgs := udpComm{
 		Type:    "Get",
 		Key:     "test-key1",
@@ -284,7 +250,6 @@ func main() {
 		Status:  "Request",
 	}
 
-	//sendMsgLog("localhost:8880", nodeIP+":777"+nodeId, "RPC Get Call to "+kvAddr)
 	fmt.Println("Connect to: " + nodeIP + ":444" + nodeId)
 	packet = Logger.PrepareSend("Send Get Request", getArgs)
 	conn = openConnection("localhost:9999", nodeIP+":444"+nodeId)
@@ -296,11 +261,53 @@ func main() {
 	fmt.Println("Wait for response")
 	pack, _ = readMessage(conn)
 	fmt.Println(pack)
+	conn.Close()
 
-	//err = kvService.Call("NodeService.Get", getArgs, &kvVal)
-	//checkError(err)
+	// Test TestSet Request
+	TestSetArgs := udpComm{
+		Type:    "TestSet",
+		Key:     "test-key1",
+		Val:     "",
+		TestVal: "testing",
+		NewVal:  "TestSet Successful",
+		Status:  "Request",
+	}
 
-	//fmt.Println("KV.get(" + getArgs.Key + ") = " + kvVal.Val)
+	fmt.Println("Connect to: " + nodeIP + ":444" + nodeId)
+	packet = Logger.PrepareSend("Send Get Request", TestSetArgs)
+	conn = openConnection("localhost:9999", nodeIP+":444"+nodeId)
+	conn.Write(packet)
+	conn.Close()
+
+	laddr, _ = net.ResolveUDPAddr("udp", "localhost:9999")
+	conn, _ = net.ListenUDP("udp", laddr)
+	fmt.Println("Wait for response")
+	pack, _ = readMessage(conn)
+	fmt.Println(pack)
+	conn.Close()
+
+	// Test Remove Request
+	removeArgs := udpComm{
+		Type:    "Remove",
+		Key:     "test-key1",
+		Val:     "",
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Request",
+	}
+
+	fmt.Println("Connect to: " + nodeIP + ":444" + nodeId)
+	packet = Logger.PrepareSend("Send Remove Request", removeArgs)
+	conn = openConnection("localhost:9999", nodeIP+":444"+nodeId)
+	conn.Write(packet)
+	conn.Close()
+
+	laddr, _ = net.ResolveUDPAddr("udp", "localhost:9999")
+	conn, _ = net.ListenUDP("udp", laddr)
+	fmt.Println("Wait for response")
+	pack, _ = readMessage(conn)
+	fmt.Println(pack)
+	conn.Close()
 }
 
 // If error is non-nil, print it out and halt.

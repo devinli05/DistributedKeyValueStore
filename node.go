@@ -151,6 +151,28 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 
 	} else if packet.Type == "Remove" {
 
+		fmt.Println("Got a REMOVE packet")
+
+		retVal := Removeudp(packet)
+		fmt.Println("Return Value: " + retVal.Val)
+		udpPortMutex.Lock()
+		fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+		conn := openConnection(nodeUDPAddr, retAddr.String())
+		fmt.Println("Prepare to send response, status: " + retVal.Status)
+		LogMutex.Lock()
+		fmt.Println("Sending : " + retVal.Type)
+		outBuf := Logger.PrepareSend("Sending :"+retVal.Type, retVal)
+		LogMutex.Unlock()
+		fmt.Println("Sending Response to: " + retAddr.String())
+
+		//laddr, err := net.ResolveUDPAddr("udp", retAddr.String())
+		//errorCheck(err, "Something is Wrong with the given local address")
+		conn.WriteTo(outBuf, retAddr)
+
+		//conn.Write(outBuf)
+		conn.Close()
+		udpPortMutex.Unlock()
+
 	} else if packet.Type == "Put" {
 		fmt.Println("Got a PUT packet")
 		if strings.EqualFold(packet.Status, "Store") {
@@ -187,7 +209,27 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 			udpPortMutex.Unlock()
 		}
 	} else {
+		//TESTSET
+		fmt.Println("Got a TESTSET packet")
+		retVal := TestSetudp(packet)
+		fmt.Println("Return Value: " + retVal.Val)
+		udpPortMutex.Lock()
+		fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+		conn := openConnection(nodeUDPAddr, retAddr.String())
+		fmt.Println("Prepare to send response, status: " + retVal.Status)
+		LogMutex.Lock()
+		fmt.Println("Sending : " + retVal.Type)
+		outBuf := Logger.PrepareSend("Sending :"+retVal.Type, retVal)
+		LogMutex.Unlock()
+		fmt.Println("Sending Response to: " + retAddr.String())
 
+		//laddr, err := net.ResolveUDPAddr("udp", retAddr.String())
+		//errorCheck(err, "Something is Wrong with the given local address")
+		conn.WriteTo(outBuf, retAddr)
+
+		//conn.Write(outBuf)
+		conn.Close()
+		udpPortMutex.Unlock()
 	}
 }
 
@@ -221,6 +263,88 @@ func readMessage(conn *net.UDPConn) (*udpComm, *net.UDPAddr) {
 		" Key: " + packet.Key + " Status: " + packet.Status)
 
 	return packet, retAddr
+}
+
+func TestSetudp(packet *udpComm) *udpComm {
+
+	ownerId := consHash.Find(packet.Key)
+	ownerUDPAddr := nodesUDPAddrMap[ownerId]
+
+	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
+		fmt.Println("I " + nodeId + " have the value")
+		kvMutex.Lock()
+		defer kvMutex.Unlock()
+
+		var retVal = ors.Get(packet.Key)
+		fmt.Println("Got value: " + retVal)
+
+		if retVal == packet.TestVal {
+			LogLocalEvent("Local TESTSET TestVal matches current Val")
+			ors.Add(packet.Key, packet.NewVal)
+
+			testset := &udpComm{
+				Type:    "TestSet",
+				Key:     packet.Key,
+				Val:     packet.NewVal,
+				TestVal: "",
+				NewVal:  "",
+				Status:  "Success",
+			}
+			fmt.Println("Returned from TestSetudp")
+			return testset
+
+		} else {
+			LogLocalEvent("Local TESTSET TestVal did not Match current Val")
+
+			testset := &udpComm{
+				Type:    "TestSet",
+				Key:     packet.Key,
+				Val:     retVal,
+				TestVal: "",
+				NewVal:  "",
+				Status:  "Failure",
+			}
+			fmt.Println("Returned from TestSetudp")
+			return testset
+		}
+
+	} else {
+		fmt.Println("Got request for Packet I (" + nodeId + ") dont have")
+		testset := &udpComm{
+			Type:    "TestSet",
+			Key:     packet.Key,
+			Val:     packet.Val,
+			TestVal: packet.TestVal,
+			NewVal:  packet.NewVal,
+			Status:  "Request",
+		}
+		LogMutex.Lock()
+		msg := Logger.PrepareSend("Sending Message", testset)
+		LogMutex.Unlock()
+		udpPortMutex.Lock()
+		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
+
+		laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
+		errorCheck(err, "Something is Wrong with the given local address")
+		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
+
+		conn.WriteTo(msg, laddr)
+		//conn.Write(msg)
+
+		conn.Close()
+		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
+
+		fmt.Println("Wait for response")
+		packet, _ := readMessage(conn)
+		fmt.Println("Returned to TestSetUDP function after got a packet")
+		conn.Close()
+		udpPortMutex.Unlock()
+		fmt.Println("Got a response")
+		//incomingMessage := new(udpComm)
+		//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
+
+		return packet
+	}
 }
 
 func Getudp(packet *udpComm) *udpComm {
@@ -278,6 +402,71 @@ func Getudp(packet *udpComm) *udpComm {
 		fmt.Println("Wait for response")
 		packet, _ := readMessage(conn)
 		fmt.Println("Returnd to getUDP function after got a packet")
+		conn.Close()
+		udpPortMutex.Unlock()
+		fmt.Println("Got a response")
+		//incomingMessage := new(udpComm)
+		//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
+
+		return packet
+	}
+}
+
+func Removeudp(packet *udpComm) *udpComm {
+
+	ownerId := consHash.Find(packet.Key)
+	ownerUDPAddr := nodesUDPAddrMap[ownerId]
+
+	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
+		fmt.Println("I " + nodeId + " have the value")
+		kvMutex.Lock()
+		defer kvMutex.Unlock()
+		ors.Remove(packet.Key, packet.Val)
+		fmt.Println("Remove value: " + packet.Val + " Key: " + packet.Key)
+
+		LogLocalEvent("Local REMOVE " + packet.Key)
+
+		fmt.Println("Released Log Lock")
+		remove := &udpComm{
+			Type:    "Remove",
+			Key:     packet.Key,
+			Val:     "",
+			TestVal: "",
+			NewVal:  "",
+			Status:  "Success",
+		}
+		fmt.Println("Returned from Removeudp")
+		return remove
+
+	} else {
+		fmt.Println("Remove request for Packet I (" + nodeId + ") dont have")
+		get := &udpComm{
+			Type:    "Remove",
+			Key:     packet.Key,
+			Val:     packet.Val,
+			TestVal: "",
+			NewVal:  "",
+			Status:  "Request",
+		}
+		LogMutex.Lock()
+		msg := Logger.PrepareSend("Sending Message", get)
+		LogMutex.Unlock()
+		udpPortMutex.Lock()
+		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
+
+		laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
+		errorCheck(err, "Something is Wrong with the given local address")
+		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
+
+		conn.WriteTo(msg, laddr)
+		//conn.Write(msg)
+
+		conn.Close()
+		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
+
+		fmt.Println("Wait for response")
+		packet, _ := readMessage(conn)
+		fmt.Println("Returnd to RemoveUDP function after got a packet")
 		conn.Close()
 		udpPortMutex.Unlock()
 		fmt.Println("Got a response")
