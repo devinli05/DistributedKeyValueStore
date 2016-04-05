@@ -82,6 +82,20 @@ const kvnodeFailure string = "kvnodeFailure"
 
 type NodeService int
 
+type ActiveList struct{}
+
+func (list ActiveList) NotifyJoin(n *memberlist.Node) {
+	fmt.Println(n.Name + " joined")
+}
+
+func (list ActiveList) NotifyLeave(n *memberlist.Node) {
+	fmt.Println(n.Name + " left")
+}
+
+func (list ActiveList) NotifyUpdate(n *memberlist.Node) {
+	fmt.Println(n.Name + " updated")
+}
+
 func getOwnerRpcClient(ownerRpcAddr string) *rpc.Client {
 	var err error
 	ownerRpcClient, contains := rpcAddrRpcCliMap[ownerRpcAddr]
@@ -693,7 +707,11 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 	config.Name = "Node" + gossipID
 	config.BindAddr = gossipAddr
 	config.BindPort = gossipPort
-
+	config.Events = ActiveList{}
+	f, err := os.Create(gossipID + "gossip.log")
+	checkError(err)
+	defer f.Close()
+	config.LogOutput = f
 	list, err := memberlist.Create(config)
 	if err != nil {
 		panic("Failed to create memberlist: " + err.Error())
