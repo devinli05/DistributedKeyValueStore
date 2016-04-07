@@ -73,6 +73,8 @@ var rpcAddrRpcCliMap map[string]*rpc.Client
 
 var nodes map[string]string
 var nodeIdList []string
+var inactiveNodes map[string]bool
+var proxyNodes map[string]string
 
 const rpcTimeout time.Duration = time.Duration(500) * time.Millisecond
 
@@ -90,6 +92,45 @@ func (list ActiveList) NotifyJoin(n *memberlist.Node) {
 
 func (list ActiveList) NotifyLeave(n *memberlist.Node) {
 	fmt.Println(n.Name + " left")
+	s := strings.Split(n.Name, "Node")
+	_, ID := s[0], s[1]
+	fmt.Println(ID)
+	inactiveNodes[ID] = true
+	int_ID, _ := strconv.Atoi(ID)
+	proxyInt := int_ID + repFactor
+	fmt.Println(proxyInt)
+	for {
+		if proxyInt < len(nodeIdList) {
+			proxyCheck := strconv.Itoa(proxyInt)
+			if _, ok := inactiveNodes[proxyCheck]; !ok {
+				fmt.Println("Proxy for " + ID + " = " + proxyCheck)
+				proxyNodes[ID] = proxyCheck
+				break
+			} else {
+				proxyInt++
+			}
+		} else if proxyInt >= len(nodeIdList) {
+			diff := proxyInt - len(nodeIdList)
+			len_diff := len(nodeIdList) - int_ID
+			if diff > len_diff && len_diff > int_ID {
+				proxyInt = diff - len_diff
+			} else {
+				proxyInt = len_diff - diff
+			}
+			fmt.Println("Estimated proxy = ")
+			fmt.Println(proxyInt)
+			//			proxyCheck := strconv.Itoa(proxyInt)
+			//			if _, ok := inactiveNodes[proxyCheck]; !ok {
+			//				fmt.Println("Proxy for " + ID + " = " + proxyCheck)
+			//				proxyNodes[ID] = proxyCheck
+			//				break
+			//			} else {
+			//				proxyInt++
+			//			}
+
+		}
+	}
+	return
 }
 
 func (list ActiveList) NotifyUpdate(n *memberlist.Node) {
@@ -282,6 +323,15 @@ func readMessage(conn *net.UDPConn) (*udpComm, *net.UDPAddr) {
 func TestSetudp(packet *udpComm) *udpComm {
 
 	ownerId := consHash.Find(packet.Key)
+	for {
+		if _, ok := inactiveNodes[ownerId]; ok {
+			iterate, _ := strconv.Atoi(ownerId)
+			iterate++
+			ownerId = strconv.Itoa(iterate)
+		} else {
+			break
+		}
+	}
 	ownerUDPAddr := nodesUDPAddrMap[ownerId]
 
 	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
@@ -364,6 +414,15 @@ func TestSetudp(packet *udpComm) *udpComm {
 func Getudp(packet *udpComm) *udpComm {
 
 	ownerId := consHash.Find(packet.Key)
+	for {
+		if _, ok := inactiveNodes[ownerId]; ok {
+			iterate, _ := strconv.Atoi(ownerId)
+			iterate++
+			ownerId = strconv.Itoa(iterate)
+		} else {
+			break
+		}
+	}
 	ownerUDPAddr := nodesUDPAddrMap[ownerId]
 
 	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
@@ -429,6 +488,15 @@ func Getudp(packet *udpComm) *udpComm {
 func Removeudp(packet *udpComm) *udpComm {
 
 	ownerId := consHash.Find(packet.Key)
+	for {
+		if _, ok := inactiveNodes[ownerId]; ok {
+			iterate, _ := strconv.Atoi(ownerId)
+			iterate++
+			ownerId = strconv.Itoa(iterate)
+		} else {
+			break
+		}
+	}
 	ownerUDPAddr := nodesUDPAddrMap[ownerId]
 
 	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
@@ -520,6 +588,9 @@ func replicate(packet *udpComm) *udpComm {
 	ID, _ := strconv.Atoi(ownerId)
 	var counter = 0
 	var i = 0
+	var altID = ""
+	var altIDInt = 0
+	var ownerUDPAddr = ""
 	fmt.Println(nodeIdList)
 	put := &udpComm{
 		Type:    "Put",
@@ -531,15 +602,31 @@ func replicate(packet *udpComm) *udpComm {
 	}
 	var response *udpComm
 	fmt.Println("Before loop")
-	for counter < repFactor {
+	for counter < repFactor+1 {
 		fmt.Println("Current counter: ")
 		fmt.Println(counter)
-		fixed := ID + i
+		var useAlt = false
+		iter_Check := ID + i
+		convert := strconv.Itoa(iter_Check)
+		if _, ok := inactiveNodes[convert]; ok {
+			fmt.Println("Owner node is inactive")
+			useAlt = true
+			altID = proxyNodes[convert]
+			altIDInt, _ = strconv.Atoi(altID)
+		}
 		//HELLO := nodeList[fixed]
 		//fmt.Println(HELLO)
 		//fmt.Println(nodeList)
 		if ID+i < len(nodeIdList) {
-			ownerUDPAddr := nodesUDPAddrMap[nodeIdList[fixed]]
+			if useAlt {
+				fmt.Println("Storing in:")
+				fmt.Println(altIDInt)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+			} else {
+				fmt.Println("Storing in:")
+				fmt.Println(iter_Check)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+			}
 			LogMutex.Lock()
 			msg := Logger.PrepareSend("Sending Message", put)
 			LogMutex.Unlock()
@@ -707,7 +794,7 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 	config.Name = "Node" + gossipID
 	config.BindAddr = gossipAddr
 	config.BindPort = gossipPort
-	config.Events = ActiveList{}
+	config.Events = &ActiveList{}
 	f, err := os.Create(gossipID + "gossip.log")
 	checkError(err)
 	defer f.Close()
@@ -878,6 +965,8 @@ func main() {
 	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
 
 	nodeIdList = strings.Split(nodes["list"], " ")
+	inactiveNodes = make(map[string]bool)
+	proxyNodes = make(map[string]string)
 	govecUdpAddrMap = make(map[string]string)
 	nodesRpcAddrMap = make(map[string]string)
 	nodesUDPAddrMap = make(map[string]string)
