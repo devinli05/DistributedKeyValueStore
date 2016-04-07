@@ -110,24 +110,9 @@ func (list ActiveList) NotifyLeave(n *memberlist.Node) {
 				proxyInt++
 			}
 		} else if proxyInt >= len(nodeIdList) {
-			diff := proxyInt - len(nodeIdList)
-			len_diff := len(nodeIdList) - int_ID
-			if diff > len_diff && len_diff > int_ID {
-				proxyInt = diff - len_diff
-			} else {
-				proxyInt = len_diff - diff
-			}
+			proxyInt = proxyInt % len(nodeIdList)
 			fmt.Println("Estimated proxy = ")
 			fmt.Println(proxyInt)
-			//			proxyCheck := strconv.Itoa(proxyInt)
-			//			if _, ok := inactiveNodes[proxyCheck]; !ok {
-			//				fmt.Println("Proxy for " + ID + " = " + proxyCheck)
-			//				proxyNodes[ID] = proxyCheck
-			//				break
-			//			} else {
-			//				proxyInt++
-			//			}
-
 		}
 	}
 	return
