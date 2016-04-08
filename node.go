@@ -57,7 +57,7 @@ func (list ActiveList) NotifyLeave(n *memberlist.Node) {
 	fmt.Println(ID)
 	inactiveNodes[ID] = true
 	int_ID, _ := strconv.Atoi(ID)
-	proxyInt := int_ID + repFactor
+	proxyInt := int_ID + repFactor - 1
 	fmt.Println(proxyInt)
 	for {
 		if proxyInt < len(nodeIdList) {
@@ -498,6 +498,9 @@ func replicate(packet *udpComm) *udpComm {
 	for counter < repFactor+1 {
 		fmt.Println("Current counter: ")
 		fmt.Println(counter)
+		if counter == repFactor {
+			break
+		}
 		var useAlt = false
 		iter_Check := ID + i
 		convert := strconv.Itoa(iter_Check)
@@ -512,13 +515,35 @@ func replicate(packet *udpComm) *udpComm {
 		//fmt.Println(nodeList)
 		if ID+i < len(nodeIdList) {
 			if useAlt {
-				fmt.Println("Storing in:")
+				fmt.Println("Storing in alternate:")
 				fmt.Println(altIDInt)
-				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+				if strings.EqualFold(altID, nodeId) {
+					fmt.Println("Storing to self")
+					response = Putudp(packet)
+					i++
+					counter++
+					if counter == repFactor-1 {
+						break
+					}
+					continue
+				} else {
+					ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+				}
 			} else {
 				fmt.Println("Storing in:")
 				fmt.Println(iter_Check)
-				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+				if strings.EqualFold(strconv.Itoa(iter_Check), nodeId) {
+					fmt.Println("Storing to self")
+					response = Putudp(packet)
+					i++
+					counter++
+					if counter == repFactor-1 {
+						break
+					}
+					continue
+				} else {
+					ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+				}
 			}
 			LogMutex.Lock()
 			msg := Logger.PrepareSend("Sending Message", put)
@@ -547,9 +572,6 @@ func replicate(packet *udpComm) *udpComm {
 			//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
 			i++
 			counter++
-			if counter == repFactor-1 {
-				break
-			}
 		} else {
 			ID = 0
 			i = 0
