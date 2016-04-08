@@ -819,20 +819,23 @@ func main() {
 	gossipID := os.Args[2]
 
 	nodeId = gossipID
-	config, err := ioutil.ReadFile("./config.json")
+	config, err := ioutil.ReadFile("config.json")
 	checkError(err)
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
 
 	// Set up gossip protocol libary using known ip:port of node 0 to bootstrap
 	bootstrapAddr := nodes["0"]
-	nodeIpPort := ""
-	if strings.EqualFold(nodeId, "0") {
+	nodeIpPort := nodes[nodeId]
+	/*if strings.EqualFold(nodeId, "0") {
 		nodeIpPort = nodes[nodeId]
 	} else {
 		nodeIpPort = nodes[nodeId] + ":0"
-	}
+	}*/
+	host, _, err := net.SplitHostPort(nodes[nodeId])
+	checkError(err)
 	gossipAddr, err := net.ResolveUDPAddr("udp", nodeIpPort)
+	fmt.Println(gossipAddr.String())
 	checkError(err)
 	go gossip(gossipID, gossipAddr.IP.String(), gossipAddr.Port, bootstrapAddr)
 
@@ -840,10 +843,12 @@ func main() {
 	inactiveNodes = make(map[string]bool)
 	proxyNodes = make(map[string]string)
 	nodesUDPAddrMap = make(map[string]string)
-	for id := range nodes {
-		nodesUDPAddrMap[id] = gossipAddr.IP.String() + ":444" + id
+	for _, id := range nodeIdList {
+		peer, _, err := net.SplitHostPort(nodes[id])
+		checkError(err)
+		nodesUDPAddrMap[id] = peer + ":444" + id
 	}
-	nodeUDPAddr = gossipAddr.IP.String() + ":333" + nodeId
+	nodeUDPAddr = host + ":333" + nodeId
 
 	// Set up GoVector Logging
 	Logger = govec.Initialize(nodeId, nodeId)

@@ -1,7 +1,11 @@
 {
-	"0":"lin10.ugrad.cs.ubc.ca:4444",
-	"1":"lin11.ugrad.cs.ubc.ca",
-	"2":"lin12.ugrad.cs.ubc.ca",
-	"3":"lin13.ugrad.cs.ubc.ca",
-	"list":"0 1 2 3"
+	"0":"lin10.ugrad.cs.ubc.ca:11111",
+	"1":"lin11.ugrad.cs.ubc.ca:0",
+	"2":"lin12.ugrad.cs.ubc.ca:0",
+	"3":"lin13.ugrad.cs.ubc.ca:0",
+	"4":"lin14.ugrad.cs.ubc.ca:0",
+	"5":"lin15.ugrad.cs.ubc.ca:0",
+	"6":"lin16.ugrad.cs.ubc.ca:0",
+	"7":"lin17.ugrad.cs.ubc.ca:0",
+	"list":"0 1 2 3 4 5 6 7"
 }
