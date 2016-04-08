@@ -36,7 +36,6 @@ var nodeUDPAddr string
 
 var ors *orset.ORSet
 var consHash *chash.Ring
-var govecUdpAddrMap map[string]string
 
 var nodesUDPAddrMap map[string]string
 
@@ -683,7 +682,6 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 	config.Events = &ActiveList{}
 	f, err := os.Create("gossipNode" + gossipID + ".log")
 	checkError(err)
-	//defer f.Close()
 	config.LogOutput = f
 	list, err := memberlist.Create(config)
 	if err != nil {
@@ -841,21 +839,16 @@ func main() {
 	nodeIdList = strings.Split(nodes["list"], " ")
 	inactiveNodes = make(map[string]bool)
 	proxyNodes = make(map[string]string)
-	govecUdpAddrMap = make(map[string]string)
 	nodesUDPAddrMap = make(map[string]string)
 	for id := range nodes {
-		govecUdpAddrMap[id] = gossipAddr.IP.String() + ":777" + id
 		nodesUDPAddrMap[id] = gossipAddr.IP.String() + ":444" + id
 	}
 	nodeUDPAddr = gossipAddr.IP.String() + ":333" + nodeId
-	myLogAddr := govecUdpAddrMap[nodeId]
 
 	// Set up GoVector Logging
 	Logger = govec.Initialize(nodeId, nodeId)
 	LogMutex = &sync.Mutex{}
 	udpPortMutex = &sync.Mutex{}
-	// Used for GoVector Logging
-	go receiveMessagesLog(myLogAddr)
 
 	numberPortions := 1024
 	var hashFunction chash.Hash = nil
