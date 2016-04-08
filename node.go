@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/rpc"
 	"os"
 	"strconv"
 	"strings"
@@ -27,35 +26,6 @@ type udpComm struct {
 	Status  string
 }
 
-// args in get(args)
-type GetArgs struct {
-	Key string // key to look up
-}
-
-// args in put(args)
-type PutArgs struct {
-	Key string // key to associate value with
-	Val string // value
-}
-
-//args in remove(args)
-type NodeRemoveArgs struct {
-	Key string // key associated with value
-	Val string // value
-}
-
-// args in testset(args)
-type NodeTestSetArgs struct {
-	Key     string // key to test
-	TestVal string // value to test against actual value
-	NewVal  string // value to use if testval equals to actual value
-}
-
-// Reply from service for all three API calls above.
-type ValReply struct {
-	Val string // value; depends on the call
-}
-
 var udpPortMutex *sync.Mutex
 var kvMutex *sync.Mutex
 var repFactor int
@@ -67,22 +37,13 @@ var nodeUDPAddr string
 var ors *orset.ORSet
 var consHash *chash.Ring
 var govecUdpAddrMap map[string]string
-var nodesRpcAddrMap map[string]string
+
 var nodesUDPAddrMap map[string]string
-var rpcAddrRpcCliMap map[string]*rpc.Client
 
 var nodes map[string]string
 var nodeIdList []string
 var inactiveNodes map[string]bool
 var proxyNodes map[string]string
-
-const rpcTimeout time.Duration = time.Duration(500) * time.Millisecond
-
-// Reserved value in the service that is used to indicate that the kv-node
-// has failed. This will be used in the error message
-const kvnodeFailure string = "kvnodeFailure"
-
-type NodeService int
 
 type ActiveList struct{}
 
@@ -120,36 +81,6 @@ func (list ActiveList) NotifyLeave(n *memberlist.Node) {
 
 func (list ActiveList) NotifyUpdate(n *memberlist.Node) {
 	fmt.Println(n.Name + " updated")
-}
-
-func getOwnerRpcClient(ownerRpcAddr string) *rpc.Client {
-	var err error
-	ownerRpcClient, contains := rpcAddrRpcCliMap[ownerRpcAddr]
-	if !contains {
-		ownerRpcClient, err = rpc.Dial("tcp", ownerRpcAddr)
-		checkError(err)
-		rpcAddrRpcCliMap[ownerRpcAddr] = ownerRpcClient
-	}
-	return ownerRpcClient
-}
-
-func (ns *NodeService) Get(args *GetArgs, reply *ValReply) error {
-	var err error = nil
-	ownerId := consHash.Find(args.Key)
-	ownerRpcAddr := nodesRpcAddrMap[ownerId]
-	//ownerRpcAddr := "127.0.0.1:6661"
-	if strings.EqualFold(ownerRpcAddr, nodesRpcAddrMap[nodeId]) {
-		kvMutex.Lock()
-		defer kvMutex.Unlock()
-		reply.Val = ors.Get(args.Key)
-		//LogLocalEvent("Get Key: " + args.Key + " Reply: " + reply.Val)
-	} else {
-		err = getOwnerRpcClient(ownerRpcAddr).Call("NodeService.Get", args, reply)
-		checkError(err)
-		localUdpAddr := strings.Split(govecUdpAddrMap[nodeId], ":")[0] + ":0"
-		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Get Request "+args.Key)
-	}
-	return err
 }
 
 func handleRequestUDP() {
@@ -544,28 +475,6 @@ func Removeudp(packet *udpComm) *udpComm {
 	}
 }
 
-func (ns NodeService) Put(args *PutArgs, reply *ValReply) error {
-	var err error = nil
-	ownerId := consHash.Find(args.Key)
-	ownerRpcAddr := nodesRpcAddrMap[ownerId]
-	//ownerRpcAddr := "127.0.0.1:6661"
-	fmt.Println(" owner: " + ownerRpcAddr)
-	fmt.Println("whoami: " + nodesRpcAddrMap[nodeId])
-	if strings.EqualFold(ownerRpcAddr, nodesRpcAddrMap[nodeId]) {
-		kvMutex.Lock()
-		defer kvMutex.Unlock()
-		ors.Add(args.Key, args.Val)
-		reply.Val = "Success"
-		//LogLocalEvent("Put Key: " + args.Key + " Value: " + args.Val)
-	} else {
-		err = getOwnerRpcClient(ownerRpcAddr).Call("NodeService.Put", args, reply)
-		checkError(err)
-		localUdpAddr := strings.Split(govecUdpAddrMap[nodeId], ":")[0] + ":0"
-		sendMsgLog(localUdpAddr, govecUdpAddrMap[ownerId], "Forward Put Request "+args.Key+":"+args.Val)
-	}
-	return err
-}
-
 func replicate(packet *udpComm) *udpComm {
 	fmt.Println("Replicating key and value")
 	ownerId := consHash.Find(packet.Key)
@@ -757,14 +666,6 @@ func Putudp(packet *udpComm) *udpComm {
 //	}
 //}
 
-/*
-func (ns *NodeService) Remove(args *PutArgs, reply *ValReply) error {
-}
-
-// TESTSET
-func (kvs *KeyValService) TestSet(args *NodeTestSetArgs, reply *ValReply) error {
-}
-*/
 // ----------------------------------------
 // GOSSIP PROTOCOL
 // ----------------------------------------
@@ -780,9 +681,9 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 	config.BindAddr = gossipAddr
 	config.BindPort = gossipPort
 	config.Events = &ActiveList{}
-	f, err := os.Create(gossipID + "gossip.log")
+	f, err := os.Create("gossipNode" + gossipID + ".log")
 	checkError(err)
-	defer f.Close()
+	//defer f.Close()
 	config.LogOutput = f
 	list, err := memberlist.Create(config)
 	if err != nil {
@@ -790,18 +691,6 @@ func gossip(gossipID string, gossipAddr string, gossipPort int, bootstrapAddr st
 	}
 
 	_, err = list.Join([]string{bootstrapAddr})
-
-	// Infinite Loop
-	// Every 5 seconds Print out all members in cluster
-	//for {
-	//time.Sleep(time.Second * 5)
-	//fmt.Println("Members:")
-	//for _, member := range list.Members() {
-	//	fmt.Printf("%s %s %d\n", member.Name, member.Addr, member.Port)
-	//}
-	//fmt.Println()
-	//}
-
 }
 
 // ----------------------------------------
@@ -953,17 +842,13 @@ func main() {
 	inactiveNodes = make(map[string]bool)
 	proxyNodes = make(map[string]string)
 	govecUdpAddrMap = make(map[string]string)
-	nodesRpcAddrMap = make(map[string]string)
 	nodesUDPAddrMap = make(map[string]string)
-	rpcAddrRpcCliMap = make(map[string]*rpc.Client)
 	for id := range nodes {
 		govecUdpAddrMap[id] = gossipAddr.IP.String() + ":777" + id
-		nodesRpcAddrMap[id] = gossipAddr.IP.String() + ":666" + id
 		nodesUDPAddrMap[id] = gossipAddr.IP.String() + ":444" + id
 	}
 	nodeUDPAddr = gossipAddr.IP.String() + ":333" + nodeId
 	myLogAddr := govecUdpAddrMap[nodeId]
-	myRpcAddr := nodesRpcAddrMap[nodeId]
 
 	// Set up GoVector Logging
 	Logger = govec.Initialize(nodeId, nodeId)
@@ -984,16 +869,9 @@ func main() {
 	// used for handling UDP communication
 	go handleRequestUDP()
 
-	// node RPC service setup
-	rpc.Register(new(NodeService))
-	myRpcListener, err := net.Listen("tcp", myRpcAddr)
-	checkError(err)
-	defer myRpcListener.Close()
-	// infinite loop to serve RPC connections
+	//TODO infinite loop to serve http requests
 	for {
-		conn, err := myRpcListener.Accept()
-		checkError(err)
-		go rpc.ServeConn(conn)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
