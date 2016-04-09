@@ -844,7 +844,7 @@ func main() {
 	gossipID := os.Args[2]
 
 	nodeId = gossipID
-	config, err := ioutil.ReadFile("linuxnode.json")
+	config, err := ioutil.ReadFile("config.json")
 	checkError(err)
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
