@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"./chash"
+	"./handler"
 	"./orset"
 	"github.com/arcaneiceman/GoVector/govec"
 	"github.com/hashicorp/memberlist"
@@ -849,11 +852,6 @@ func main() {
 	// Set up gossip protocol libary using known ip:port of node 0 to bootstrap
 	bootstrapAddr := nodes["0"]
 	nodeIpPort := nodes[nodeId]
-	/*if strings.EqualFold(nodeId, "0") {
-		nodeIpPort = nodes[nodeId]
-	} else {
-		nodeIpPort = nodes[nodeId] + ":0"
-	}*/
 	host, _, err := net.SplitHostPort(nodes[nodeId])
 	checkError(err)
 	gossipAddr, err := net.ResolveUDPAddr("udp", nodeIpPort)
@@ -889,10 +887,8 @@ func main() {
 	// used for handling UDP communication
 	go handleRequestUDP()
 
-	//TODO infinite loop to serve http requests
-	for {
-		time.Sleep(100 * time.Millisecond)
-	}
+	//blocking call to serve http requests
+	log.Fatal(http.ListenAndServe(host+":888"+nodeId, handler.NewRouter(nodeId, nodesUDPAddrMap[nodeId])))
 }
 
 // If error is non-nil, print it out and halt.
