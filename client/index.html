@@ -16,7 +16,6 @@
 			background: #D7D7D7;
 		}
 
-
 		.card {
 			margin-left: auto;
 			margin-right: auto;
@@ -178,7 +177,6 @@
 		</div>
 	</div>
 
-
 	<script>
 		function ConvertFormToJSON(form) {
 		    var array = jQuery(form).serializeArray();
@@ -237,6 +235,8 @@
 			function GetJSONData() {
 				// SEND local tasklist to server
 				$.getJSON("/todos", tasklist, function(serverResponse) {
+					// clear container
+					$('#tasks').empty();
 					//receive response from server and parse each task key/value
 					$.each(serverResponse, function(key, value) {
 						$('ul').append("<li><b>Task:</b> " + value.task +
