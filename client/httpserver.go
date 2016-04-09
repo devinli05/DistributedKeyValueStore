@@ -110,15 +110,12 @@ func Add(w http.ResponseWriter, r *http.Request) {
     conn.Close()
     // if successfull, append the list
     if (pack.Status == "Success") {
- // send back success ack
-         // add to client side list:
-        todolist[todo.Task] = todo.Description
-
+        // send back success ack
         w.Header().Set("Content-Type", "application/json; charset=UTF-8")
         w.WriteHeader(http.StatusCreated)
         if err := json.NewEncoder(w).Encode(todo); err != nil {
             panic(err)
-        }    
+        }
     }
 }
 
@@ -161,7 +158,7 @@ func Remove(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusCreated)
         if err := json.NewEncoder(w).Encode(todo); err != nil {
             panic(err)
-        }    
+        }
     }
 }
 
@@ -194,8 +191,9 @@ func Todos(w http.ResponseWriter, r *http.Request) {
     //         pack, _ := readMessage(conn)
     //         fmt.Println(pack)
     //         conn.Close()
-    //     todo = 
+    //     todo =
     // }
+
     w.Header().Set("Content-Type", "application/json")
     // j, _ := json.Marshal(tasks)
     // w.Write(j)
@@ -217,7 +215,7 @@ func main() {
     // http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
     //     fmt.Fprintf(w, "Testing, %q", html.EscapeString(r.URL.Path))
     // })
-    // HTTP SERVER AND ROUTER 
+    // HTTP SERVER AND ROUTER
     // cssHandler := http.FileServer(http.Dir("./css/"))
     // jsHandler := http.FileServer(http.Dir("./js/"))
 
@@ -232,7 +230,7 @@ func main() {
     router.HandleFunc("/remove", Remove)
     router.HandleFunc("/todos", Todos)
     router.HandleFunc("/todos/{todoId}", TodoShow)
-   
+
     log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -347,4 +345,3 @@ func sendToBackEnd(putArgs *udpComm, req string) {
     conn.Close()
 
 }
-    
