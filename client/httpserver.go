@@ -22,7 +22,7 @@ import (
 
 )
 
-var nodeIP = "localhost:4440"  // HARDCODED NODE IP
+var nodeIP = "localhost:4441"  // HARDCODED NODE IP
 
 // TODO Object
 type Todo struct {
@@ -30,9 +30,9 @@ type Todo struct {
     Description  string `json:"description"`
 }
 
-// var todos []Todo
+var todos []Todo
 
-var todos map[string]string
+var todolist map[string]string
 
 type udpComm struct {
     Type    string
@@ -52,7 +52,6 @@ var LogMutex *sync.Mutex
 
 
 // ROUTER FUNCTIONS
-
 
 func Index(w http.ResponseWriter, r *http.Request) {
 
@@ -113,7 +112,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
     if (pack.Status == "Success") {
  // send back success ack
          // add to client side list:
-        todos[todo.Task] = todo.Description
+        todolist[todo.Task] = todo.Description
 
         w.Header().Set("Content-Type", "application/json; charset=UTF-8")
         w.WriteHeader(http.StatusCreated)
@@ -167,11 +166,36 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 }
 
 // page to list the todos
-func GetTodos(w http.ResponseWriter, r *http.Request) {
+func Todos(w http.ResponseWriter, r *http.Request) {
     // mock items
-    // todos = append(todos, Todo{Task: "Write presentation", Description: "DO A GOOD JOB"})
-    // todos = append(todos, Todo{Task: "Dance", Description: "LIKE WHEN NO ONE IS WATCHING"})
+    todos = append(todos, Todo{Task: "Write presentation", Description: "DO A GOOD JOB"})
+    todos = append(todos, Todo{Task: "Dance", Description: "LIKE WHEN NO ONE IS WATCHING"})
+    // for k, _ := todolist {
+    //     // get values
+    //     // SEND Get Request
+    //         getArgs := udpComm{
+    //             Type:    "Get",
+    //             Key:     k,
+    //             Val:     "",
+    //             TestVal: "",
+    //             NewVal:  "",
+    //             Status:  "Request",
+    //         }
 
+    //         fmt.Println("Connect to: " + nodeIP)
+    //         packet := Logger.PrepareSend("Send Get Request", getArgs)
+    //         conn := openConnection("localhost:9999", nodeIP)
+    //         conn.Write(packet)
+    //         conn.Close()
+
+    //         laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+    //         conn, _ = net.ListenUDP("udp", laddr)
+    //         fmt.Println("Wait for response")
+    //         pack, _ := readMessage(conn)
+    //         fmt.Println(pack)
+    //         conn.Close()
+    //     todo = 
+    // }
     w.Header().Set("Content-Type", "application/json")
     // j, _ := json.Marshal(tasks)
     // w.Write(j)
@@ -180,8 +204,6 @@ func GetTodos(w http.ResponseWriter, r *http.Request) {
         panic(err)
     }
 }
-
-
 
 func TodoShow(w http.ResponseWriter, r *http.Request) {
     vars := mux.Vars(r)
@@ -208,7 +230,7 @@ func main() {
     router.HandleFunc("/", Index)
     router.HandleFunc("/add", Add).Methods("POST")
     router.HandleFunc("/remove", Remove)
-    router.HandleFunc("/todos", GetTodos).Methods("GET")
+    router.HandleFunc("/todos", Todos)
     router.HandleFunc("/todos/{todoId}", TodoShow)
    
     log.Fatal(http.ListenAndServe(":8080", router))

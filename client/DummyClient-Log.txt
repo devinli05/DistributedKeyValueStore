@@ -1,2 +1,0 @@
-DummyClient {"DummyClient":1}
-Initialization Complete

@@ -154,7 +154,6 @@
 					border-left: 5px solid #7FE817;
 				}
 	</style>
-
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 </head>
 
@@ -174,7 +173,7 @@
 			</div>
 		</form>
 		<div class="tasks-container" id="todolist">
-			<ul id="tasks"></ul> 
+			<ul id="tasks"></ul>
 			<button class="create-btn" id="update" type="submit">Update</button>
 		</div>
 	</div>
@@ -184,7 +183,7 @@
 		function ConvertFormToJSON(form) {
 		    var array = jQuery(form).serializeArray();
 		    var json = {};
-		
+
 		    jQuery.each(array, function() {
 		        json[this.name] = this.value || '';
 		    });
@@ -206,50 +205,69 @@
 		//     });
 		//     return json;
 		// };
-		var keys = [];
+		var tasklist = {};
 		jQuery(document).on('ready',function() {
+
+			// ADD TASK FUNCTION
 			$('form').bind('submit', function(event){
 				event.preventDefault();
 				var form = this;
 				var json = ConvertFormToJSON(form);
 				console.log(json);
-					
 				$.ajax({
 					type:"POST",
 					url: "/add",   /*SERVER URL */
 					data: JSON.stringify(json),
-					dataType: "json",	
+					dataType: "json",
 					contentType: "application/json",
 					success: function(newtask) {
 						console.log('New Task Added')
-						
 					},
 					error: function() {
 						alert('error adding task');
 					}
-
 				});
 				return true;
 			});
+
 			$('#update').click(function() {
-				var $tasks = $('#tasks');
-				$.ajax({
-					type:'GET',
-					url: '/todos',   /*SERVER URL */
-					success: function(tasks) {
-						if(!$.isEmptyObject(tasks)) {
-							// var obj = JSON.parse(data);
-							$.each(tasks, function(i, item) {
-								$tasks.append('<li><b>Task:</b> '+ item.task + ', </b>Description:</b> ' + item.description + '</li>');
-							});
-						}
-					},
-					timeout: 5000,
-					error: function() {
-						alert('error loading tasks');
-					}
-				});
+				GetJSONData();
 			});
+
+			function GetJSONData() {
+				// SEND local tasklist to server
+				$.getJSON("/todos", tasklist, function(serverResponse) {
+					//receive response from server and parse each task key/value
+					$.each(serverResponse, function(key, value) {
+						$('ul').append("<li><b>Task:</b> " + value.task +
+						", <b>Description:</b> " + value.description + "</li>");
+						tasklist.key = value;  // add to local tasklist
+					});
+				});
+			}
+			function AutoRefreshTasks() {
+				// $('.tasks-container').load(load.html); {
+				// 	var $tasks = $('#tasks');
+				// 	$.ajax({
+				// 		type:'GET',
+				// 		url: '/todos',   /*SERVER URL */
+				// 		success: function(tasks) {
+				// 			if(!$.isEmptyObject(tasks)) {
+				// 				// var obj = JSON.parse(data);
+				// 				$.each(tasks, function(i, item) {
+				// 					$tasks.append('<li><b>Task:</b> '+ item.task + ', </b>Description:</b> ' + item.description + '</li>');
+				// 				});
+				// 			}
+				// 		},
+				// 		timeout: 4000,
+				// 		error: function() {
+				// 			alert('error loading tasks');
+				// 		}
+				// 	});
+				// };
+
+			};
+			// setInterval('AutoRefreshTasks()', 5000); // refresh div after 5 secs
 		});
 	</script>
 </body>
