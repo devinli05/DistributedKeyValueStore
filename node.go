@@ -591,10 +591,10 @@ func replicate(packet *udpComm) *udpComm {
 	//conn.Write(msg)
 
 	//conn.Close()
-	fmt.Println(requestBuffer)
-	for _, y := range requestBuffer {
-		go handleResponse(nodeUDPAddr, y, responses)
-	}
+	//	for _, y := range requestBuffer {
+	//		go handleResponse(nodeUDPAddr, y, responses)
+	//	}
+	go handleResponse(nodeUDPAddr, ownerUDPAddr, responses)
 	timeout_ch := make(chan bool, 1)
 	go func() {
 		time.Sleep(timeout)
@@ -634,8 +634,6 @@ func replicate(packet *udpComm) *udpComm {
 }
 
 func handleResponse(localaddr, remoteaddr string, c chan *udpComm) {
-	fmt.Println("Local: " + localaddr)
-	fmt.Println("Remote: " + remoteaddr)
 	conn := openConnection(localaddr, remoteaddr)
 	packet, _ := readMessage(conn)
 	c <- packet
@@ -813,6 +811,7 @@ func openConnection(localAddr, remoteAddr string) *net.UDPConn {
 	conn, _ := net.ListenUDP("udp", laddr)
 	//conn, err := net.DialUDP("udp", laddr, raddr)
 	//errorCheck(err, "Something has gone wrong in the initial connection")
+
 	return conn
 }
 
