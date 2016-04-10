@@ -44,6 +44,8 @@ var nodeIdList []string
 var inactiveNodes map[string]bool
 var proxyNodes map[string]string
 
+var timeout = 5 * time.Second
+
 type ActiveList struct{}
 
 func (list ActiveList) NotifyJoin(n *memberlist.Node) {
@@ -484,6 +486,8 @@ func replicate(packet *udpComm) *udpComm {
 	var altID = ""
 	var altIDInt = 0
 	var ownerUDPAddr = ""
+	responses := make(chan *udpComm, repFactor)
+	requestBuffer := make(map[string]string)
 	fmt.Println(nodeIdList)
 	put := &udpComm{
 		Type:    "Put",
@@ -493,8 +497,6 @@ func replicate(packet *udpComm) *udpComm {
 		NewVal:  "",
 		Status:  "Store",
 	}
-	var response *udpComm
-	fmt.Println("Before loop")
 	for counter < repFactor+1 {
 		fmt.Println("Current counter: ")
 		fmt.Println(counter)
@@ -510,66 +512,41 @@ func replicate(packet *udpComm) *udpComm {
 			altID = proxyNodes[convert]
 			altIDInt, _ = strconv.Atoi(altID)
 		}
-		//HELLO := nodeList[fixed]
-		//fmt.Println(HELLO)
-		//fmt.Println(nodeList)
 		if ID+i < len(nodeIdList) {
 			if useAlt {
 				fmt.Println("Storing in alternate:")
 				fmt.Println(altIDInt)
-				if strings.EqualFold(altID, nodeId) {
-					fmt.Println("Storing to self")
-					response = Putudp(packet)
-					i++
-					counter++
-					if counter == repFactor-1 {
-						break
-					}
-					continue
-				} else {
-					ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
-				}
+				//if strings.EqualFold(altID, nodeId) {
+				//	fmt.Println("Storing to self")
+				//	response = Putudp(packet)
+				//	i++
+				//	counter++
+				//	if counter == repFactor-1 {
+				//		break
+				//	}
+				//	continue
+				//} else {
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+				requestBuffer[altID] = ownerUDPAddr
+				//}
 			} else {
 				fmt.Println("Storing in:")
 				fmt.Println(iter_Check)
-				if strings.EqualFold(strconv.Itoa(iter_Check), nodeId) {
-					fmt.Println("Storing to self")
-					response = Putudp(packet)
-					i++
-					counter++
-					if counter == repFactor-1 {
-						break
-					}
-					continue
-				} else {
-					ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
-				}
+				//if strings.EqualFold(strconv.Itoa(iter_Check), nodeId) {
+				//	fmt.Println("Storing to self")
+				//	response = Putudp(packet)
+				//	i++
+				//	counter++
+				//	if counter == repFactor-1 {
+				//		break
+				//	}
+				//	continue
+				//} else {
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+				x := strconv.Itoa(iter_Check)
+				requestBuffer[x] = ownerUDPAddr
+				//}
 			}
-			LogMutex.Lock()
-			msg := Logger.PrepareSend("Sending Message", put)
-			LogMutex.Unlock()
-			udpPortMutex.Lock()
-			conn := openConnection(nodeUDPAddr, ownerUDPAddr)
-
-			laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
-			errorCheck(err, "Something is Wrong with the given local address")
-			fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
-
-			conn.WriteTo(msg, laddr)
-			//conn.Write(msg)
-
-			conn.Close()
-			conn = openConnection(nodeUDPAddr, ownerUDPAddr)
-
-			fmt.Println("Wait for response")
-			packet, _ := readMessage(conn)
-			response = packet
-			fmt.Println("Returnd to putUDP function after got a packet")
-			conn.Close()
-			udpPortMutex.Unlock()
-			fmt.Println("Got a response")
-			//incomingMessage := new(udpComm)
-			//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
 			i++
 			counter++
 		} else {
@@ -577,9 +554,93 @@ func replicate(packet *udpComm) *udpComm {
 			i = 0
 		}
 	}
-	fmt.Println("Done replicating")
-	fmt.Println(response)
-	return response
+
+	LogMutex.Lock()
+	msg := Logger.PrepareSend("Sending Message", put)
+	LogMutex.Unlock()
+	udpPortMutex.Lock()
+	for m, n := range requestBuffer {
+		if strings.EqualFold(m, nodeId) {
+			fmt.Println("Storing to self")
+			response := Putudp(packet)
+			fmt.Println(response)
+			udpPortMutex.Unlock()
+			return response
+		}
+		conn := openConnection(nodeUDPAddr, n)
+
+		laddr, err := net.ResolveUDPAddr("udp", n)
+		errorCheck(err, "Something is Wrong with the given local address")
+		fmt.Println("Send request to " + n + " From " + nodeUDPAddr)
+
+		conn.WriteTo(msg, laddr)
+		//conn.Write(msg)
+
+		conn.Close()
+
+	}
+	//udpPortMutex.Unlock()
+	//udpPortMutex.Lock()
+	//conn := openConnection(nodeUDPAddr, ownerUDPAddr)
+
+	//laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
+	//errorCheck(err, "Something is Wrong with the given local address")
+	//fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
+
+	//conn.WriteTo(msg, laddr)
+	//conn.Write(msg)
+
+	//conn.Close()
+	fmt.Println(requestBuffer)
+	for _, y := range requestBuffer {
+		go handleResponse(nodeUDPAddr, y, responses)
+	}
+	timeout_ch := make(chan bool, 1)
+	go func() {
+		time.Sleep(timeout)
+		timeout_ch <- true
+	}()
+	//conn = openConnection(nodeUDPAddr, ownerUDPAddr)
+
+	fmt.Println("Waiting for response")
+	select {
+	case response_packet := <-responses:
+		fmt.Println("Received a response")
+		udpPortMutex.Unlock()
+		fmt.Println("Got a response")
+		//incomingMessage := new(udpComm)
+		//Logger.UnpackReceive("Received Message", buf, &incomingMessage)
+		//fmt.Println("Done replicating")
+		fmt.Println(response_packet)
+		close(timeout_ch)
+		close(responses)
+		return response_packet
+	case <-timeout_ch:
+		fmt.Println("Timeout occurred, failed to store data")
+		udpPortMutex.Unlock()
+		failed := &udpComm{
+			Type:    "Put",
+			Key:     packet.Key,
+			Val:     packet.Val,
+			TestVal: "",
+			NewVal:  "",
+			Status:  "Failed",
+		}
+		fmt.Println(failed)
+		close(timeout_ch)
+		close(responses)
+		return failed
+	}
+}
+
+func handleResponse(localaddr, remoteaddr string, c chan *udpComm) {
+	fmt.Println("Local: " + localaddr)
+	fmt.Println("Remote: " + remoteaddr)
+	conn := openConnection(localaddr, remoteaddr)
+	packet, _ := readMessage(conn)
+	c <- packet
+	conn.Close()
+	return
 }
 
 func Putudp(packet *udpComm) *udpComm {
@@ -593,7 +654,7 @@ func Putudp(packet *udpComm) *udpComm {
 
 	LogLocalEvent("Local Put returned: " + retVal)
 
-	fmt.Println("Released Log Lock")
+	//fmt.Println("Released Log Lock")
 	put := &udpComm{
 		Type:    "Put",
 		Key:     packet.Key,
@@ -602,7 +663,7 @@ func Putudp(packet *udpComm) *udpComm {
 		NewVal:  "",
 		Status:  "Success",
 	}
-	fmt.Println("Returned from Putudp")
+	fmt.Println("Returned from Putudp in " + nodeId)
 	return put
 }
 
@@ -752,7 +813,6 @@ func openConnection(localAddr, remoteAddr string) *net.UDPConn {
 	conn, _ := net.ListenUDP("udp", laddr)
 	//conn, err := net.DialUDP("udp", laddr, raddr)
 	//errorCheck(err, "Something has gone wrong in the initial connection")
-
 	return conn
 }
 
@@ -841,7 +901,7 @@ func main() {
 	gossipID := os.Args[2]
 
 	nodeId = gossipID
-	config, err := ioutil.ReadFile("linuxnode.json")
+	config, err := ioutil.ReadFile("config.json")
 	checkError(err)
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
