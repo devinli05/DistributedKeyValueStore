@@ -459,7 +459,7 @@ func Getudp(packet *udpComm) *udpComm {
 		//conn.WriteTo(msg, laddr)
 		//conn.Write(msg)
 
-		//conn.Close()
+		conn.Close()
 		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
 
 		fmt.Println("Wait for response")
