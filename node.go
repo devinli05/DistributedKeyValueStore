@@ -113,66 +113,75 @@ func handleRequestUDPHelper(udpConn *net.UDPConn, packet *udpComm, retAddr *net.
 	if packet.Type == "Get" {
 		fmt.Println("Got a GET packet")
 		retVal := Getudp(packet)
-		fmt.Println("Return Value: " + retVal.Val)
-		udpPortMutex.Lock()
-		fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
-		conn := openConnection(nodeUDPAddr, retAddr.String())
-		fmt.Println("Prepare to send response, status: " + retVal.Status)
-		LogMutex.Lock()
-		fmt.Println("Sending : " + retVal.Type)
-		outBuf := Logger.PrepareSend("Sending :"+retVal.Type, retVal)
-		LogMutex.Unlock()
-		fmt.Println("Sending Response to: " + retAddr.String())
+		msg := "Retrieve " + retVal.Key + ":" + retVal.Val
+		outBuf := addGovecLog(msg, retVal)
+		udpConn.WriteToUDP(outBuf, retAddr)
+		//		fmt.Println("Return Value: " + retVal.Val)
+		//		udpPortMutex.Lock()
+		//		fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+		//		conn := openConnection(nodeUDPAddr, retAddr.String())
+		//		fmt.Println("Prepare to send response, status: " + retVal.Status)
+		//		LogMutex.Lock()
+		//		fmt.Println("Sending : " + retVal.Type)
+		//		outBuf := Logger.PrepareSend("Sending :"+retVal.Type, retVal)
+		//		LogMutex.Unlock()
+		//		fmt.Println("Sending Response to: " + retAddr.String())
 
 		//laddr, err := net.ResolveUDPAddr("udp", retAddr.String())
 		//errorCheck(err, "Something is Wrong with the given local address")
-		conn.WriteTo(outBuf, retAddr)
+		//		conn.WriteTo(outBuf, retAddr)
 
 		//conn.Write(outBuf)
-		conn.Close()
-		udpPortMutex.Unlock()
+		//		conn.Close()
+		//		udpPortMutex.Unlock()
 
 	} else if packet.Type == "Remove" {
 
 		fmt.Println("Got a REMOVE packet")
 		if strings.EqualFold(packet.Status, "Remove") {
 			retVal := Removeudp(packet)
-			fmt.Println("Return Value: " + retVal.Val)
-			udpPortMutex.Lock()
-			fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
-			conn := openConnection(nodeUDPAddr, retAddr.String())
-			fmt.Println("Prepare to send response, status: " + retVal.Status)
-			LogMutex.Lock()
-			fmt.Println("Sending : " + retVal.Type)
-			outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
-			LogMutex.Unlock()
-			fmt.Println("Sending Response to: " + retAddr.String())
+			msg := "Remove " + retVal.Key + ":" + retVal.Val
+			outBuf := addGovecLog(msg, retVal)
+			udpConn.WriteToUDP(outBuf, retAddr)
+			//			fmt.Println("Return Value: " + retVal.Val)
+			//			udpPortMutex.Lock()
+			//			fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+			//			conn := openConnection(nodeUDPAddr, retAddr.String())
+			//			fmt.Println("Prepare to send response, status: " + retVal.Status)
+			//			LogMutex.Lock()
+			//			fmt.Println("Sending : " + retVal.Type)
+			//			outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
+			//			LogMutex.Unlock()
+			//			fmt.Println("Sending Response to: " + retAddr.String())
 
-			conn.WriteTo(outBuf, retAddr)
-			conn.Close()
-			udpPortMutex.Unlock()
+			//			conn.WriteTo(outBuf, retAddr)
+			//			conn.Close()
+			//			udpPortMutex.Unlock()
 		} else {
 			retVal := distribute(packet, "Remove")
-			fmt.Println("Return Value: " + retVal.Val)
-			udpPortMutex.Lock()
-			fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
-			conn := openConnection(nodeUDPAddr, retAddr.String())
-			fmt.Println("Prepare to send response, status: " + retVal.Status)
-			LogMutex.Lock()
-			fmt.Println("Sending : " + retVal.Type)
-			outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
-			LogMutex.Unlock()
-			fmt.Println("Sending Response to: " + retAddr.String())
+			msg := "Finished " + retVal.Type + " " + retVal.Key + ":" + retVal.Val
+			outBuf := addGovecLog(msg, retVal)
+			udpConn.WriteToUDP(outBuf, retAddr)
+			//			fmt.Println("Return Value: " + retVal.Val)
+			//			udpPortMutex.Lock()
+			//			fmt.Println("Open Connection to: " + retAddr.String() + " from: " + nodeUDPAddr)
+			//			conn := openConnection(nodeUDPAddr, retAddr.String())
+			//			fmt.Println("Prepare to send response, status: " + retVal.Status)
+			//			LogMutex.Lock()
+			//			fmt.Println("Sending : " + retVal.Type)
+			//			outBuf := Logger.PrepareSend("Sending : "+retVal.Type, retVal)
+			//			LogMutex.Unlock()
+			//			fmt.Println("Sending Response to: " + retAddr.String())
 
-			conn.WriteTo(outBuf, retAddr)
-			conn.Close()
-			udpPortMutex.Unlock()
+			//			conn.WriteTo(outBuf, retAddr)
+			//			conn.Close()
+			//			udpPortMutex.Unlock()
 		}
 	} else if packet.Type == "Put" {
 		fmt.Println("Got a PUT packet")
 		if strings.EqualFold(packet.Status, "Store") {
 			retVal := Putudp(packet)
-			msg := "store " + retVal.Key + ":" + retVal.Val
+			msg := "Store " + retVal.Key + ":" + retVal.Val
 			outBuf := addGovecLog(msg, retVal)
 			udpConn.WriteToUDP(outBuf, retAddr)
 			/*fmt.Println("Return Value: " + retVal.Val)
@@ -191,7 +200,7 @@ func handleRequestUDPHelper(udpConn *net.UDPConn, packet *udpComm, retAddr *net.
 			udpPortMutex.Unlock()*/
 		} else {
 			retVal := distribute(packet, "Put")
-			msg := "done " + retVal.Type + " " + retVal.Key + ":" + retVal.Val
+			msg := "Finished " + retVal.Type + " " + retVal.Key + ":" + retVal.Val
 			outBuf := addGovecLog(msg, retVal)
 			udpConn.WriteToUDP(outBuf, retAddr)
 			/*fmt.Println("Return Value: " + retVal.Val)
@@ -213,6 +222,12 @@ func handleRequestUDPHelper(udpConn *net.UDPConn, packet *udpComm, retAddr *net.
 	} else if packet.Type == "Build" {
 		fmt.Println("Got a Build Packet from: " + retAddr.String())
 		retVal := createNodeOrset(packet.Status)
+		//		msg := "Build " + retVal.Keys + ":" + retVal.Values
+		//		LogMutex.Lock()
+		//		outBuf := Logger.PrepareSend(msg, retVal)
+		//		LogMutex.Unlock()
+		//outBuf := addGovecLog(msg, retVal)
+		//		udpConn.WriteToUDP(outBuf, retAddr)
 		fmt.Println("Keys:")
 		fmt.Println(retVal.Keys)
 		udpPortMutex.Lock()
@@ -283,6 +298,7 @@ func readMessage(conn *net.UDPConn) (*udpComm, *net.UDPAddr) {
 	LogMutex.Lock()
 	Logger.UnpackReceive("Receive Message", buffer[:bytesRead], &packet)
 	LogMutex.Unlock()
+	LogLocalEvent("Message - " + "Type: " + packet.Type + " Key: " + packet.Key + " Val: " + packet.Val + " Status: " + packet.Status)
 
 	return packet, retAddr
 }
@@ -427,9 +443,11 @@ func Getudp(packet *udpComm) *udpComm {
 			NewVal:  "",
 			Status:  "Request",
 		}
-		LogMutex.Lock()
-		msg := Logger.PrepareSend("Sending Message", get)
-		LogMutex.Unlock()
+		//		LogMutex.Lock()
+		//		msg := Logger.PrepareSend("Sending Message", get)
+		msg := "Retrieve " + get.Key + ":" + get.Val
+		outBuf := addGovecLog(msg, get)
+		//		LogMutex.Unlock()
 		udpPortMutex.Lock()
 		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
 
@@ -437,10 +455,11 @@ func Getudp(packet *udpComm) *udpComm {
 		errorCheck(err, "Something is Wrong with the given local address")
 		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
 
-		conn.WriteTo(msg, laddr)
+		conn.WriteToUDP(outBuf, laddr)
+		//conn.WriteTo(msg, laddr)
 		//conn.Write(msg)
 
-		conn.Close()
+		//conn.Close()
 		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
 
 		fmt.Println("Wait for response")
@@ -563,11 +582,11 @@ func distribute(packet *udpComm, packet_type string) *udpComm {
 	LogMutex.Lock()
 	switch {
 	case strings.EqualFold(packet_type, "Put"):
-		msg = Logger.PrepareSend("Sending Message", put)
+		msg = Logger.PrepareSend("Sending Put request for Key: "+put.Key+" and Val: "+put.Val, put)
 	case strings.EqualFold(packet_type, "Get"):
 		msg = Logger.PrepareSend("Sending Message", get)
 	case strings.EqualFold(packet_type, "Remove"):
-		msg = Logger.PrepareSend("Sending Message", remove)
+		msg = Logger.PrepareSend("Sending Remove request for Key: "+remove.Key+" and Val: "+remove.Val, remove)
 	}
 	LogMutex.Unlock()
 	udpPortMutex.Lock()
