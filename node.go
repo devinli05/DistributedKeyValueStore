@@ -952,16 +952,59 @@ func buildORSET() {
 
 func contactMyReplicas() {
 	fmt.Println("ContactMyReplicas")
-	totalNodes := len(nodeIdList)
+	//totalNodes := len(nodeIdList)
 
 	val, _ := strconv.Atoi(nodeId)
 	currentNode := val + 1
-
-	for i := 1; i <= repFactor-1; i++ {
-		fmt.Println("contacting Replicas")
-		if currentNode >= totalNodes {
-			currentNode = 0
+	var counter = 0
+	var i = 0
+	var altID = ""
+	var altIDInt = 0
+	var ownerUDPAddr = ""
+	requestBuffer := make(map[string]string)
+	for counter < repFactor+1 {
+		fmt.Println("Current counter: ")
+		fmt.Println(counter)
+		if counter == repFactor {
+			break
 		}
+		var useAlt = false
+		iter_Check := currentNode + i
+		convert := strconv.Itoa(iter_Check)
+		if _, ok := inactiveNodes[convert]; ok {
+			fmt.Println("Owner node is inactive")
+			useAlt = true
+			altID = proxyNodes[convert]
+			altIDInt, _ = strconv.Atoi(altID)
+		}
+		if currentNode+i < len(nodeIdList) {
+			if useAlt {
+				fmt.Println("Using alternate node:")
+				fmt.Println(altIDInt)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+				requestBuffer[altID] = ownerUDPAddr
+			} else {
+				fmt.Println("Using node:")
+				fmt.Println(iter_Check)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+				x := strconv.Itoa(iter_Check)
+				requestBuffer[x] = ownerUDPAddr
+				//}
+			}
+			i++
+			counter++
+		} else {
+			currentNode = 0
+			i = 0
+		}
+	}
+
+	//	for i := 1; i <= repFactor-1; i++ {
+	fmt.Println("contacting Replicas")
+	for _, j := range requestBuffer {
+		//if currentNode >= totalNodes {
+		//	currentNode = 0
+		//}
 
 		build := &udpComm{
 			Type:    "Build",
@@ -979,19 +1022,22 @@ func contactMyReplicas() {
 		fmt.Println("Prepped message")
 
 		fmt.Println("got udp lock")
-		fmt.Println("Contacting Replica: " + nodesUDPAddrMap[strconv.Itoa(currentNode)])
-		conn := openConnection(nodeOrsetBuildAddr, nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		//fmt.Println("Contacting Replica: " + nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		//conn := openConnection(nodeOrsetBuildAddr, nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		fmt.Println("Contacting Replica: " + j)
+		conn := openConnection(nodeOrsetBuildAddr, j)
 
 		fmt.Println("Opened connection to Replica")
 
-		laddr, err := net.ResolveUDPAddr("udp", nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		//laddr, err := net.ResolveUDPAddr("udp", nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		laddr, err := net.ResolveUDPAddr("udp", j)
 		errorCheck(err, "Something is Wrong with the given local address")
 		fmt.Println("Sending Build Request")
 
 		conn.WriteTo(msg, laddr)
 		conn.Close()
 
-		conn = openConnection(nodeOrsetBuildAddr, nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		conn = openConnection(nodeOrsetBuildAddr, j)
 		fmt.Println("Open connection and set timeout")
 		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 
@@ -1036,7 +1082,7 @@ func contactMyReplicas() {
 			kvMutex.Unlock()
 		}
 
-		currentNode++
+		//currentNode++
 
 	}
 }
@@ -1059,7 +1105,7 @@ func main() {
 	restartFlag := os.Args[3]
 
 	nodeId = gossipID
-	config, err := ioutil.ReadFile("config.json")
+	config, err := ioutil.ReadFile("linuxnode.json")
 	checkError(err)
 	err = json.Unmarshal(config, &nodes)
 	checkError(err)
