@@ -41,17 +41,17 @@ func NewRouter(nodeId string, udpAddr string) http.Handler {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", Index)
 	router.HandleFunc("/add", Add).Methods("POST")
+	router.HandleFunc("/remove", Remove).Methods("DELETE")
+	router.HandleFunc("/{key}", GetTodo).Methods("GET")
 	return router
 }
 
 func Index(w http.ResponseWriter, r *http.Request) {
-	//http.ServeFile(w, r, "index.html")
-	fmt.Fprintln(w, "index")
+	http.ServeFile(w, r, "index.html")
 }
 
 func Add(w http.ResponseWriter, r *http.Request) {
 	// read the json from the client at "/add"
-
 	var todo Todo
 
 	decoder := json.NewDecoder(r.Body)
@@ -83,6 +83,87 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
+}
+
+func Remove(w http.ResponseWriter, r *http.Request) {
+
+	var todo Todo
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&todo)
+	if err != nil {
+		panic("error in REMOVE decoding JSON")
+	}
+
+	// Remove Request
+	removeArgs := udpComm{
+		Type:    "Remove",
+		Key:     todo.Task,
+		Val:     "",
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Request",
+	}
+
+	fmt.Println("Connect to: " + nodeIP)
+	packet := Logger.PrepareSend("Send Remove Request", removeArgs)
+	conn := openConnection("localhost:9999", nodeIP)
+	conn.Write(packet)
+	conn.Close()
+
+	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+	conn, _ = net.ListenUDP("udp", laddr)
+	fmt.Println("Wait for response")
+	pack, _ := readMessage(conn)
+	fmt.Println(pack)
+	conn.Close()
+
+	// IF RECEIVED SUCCESS MESSAGE
+	if pack.Status == "Success" {
+		// send back success ack
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func GetTodo(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	task := vars["key"]
+
+	// Get Request
+	getArgs := udpComm{
+		Type:    "Get",
+		Key:     task,
+		Val:     "",
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Request",
+	}
+
+	fmt.Println("Connect to: " + nodeIP)
+	packet := Logger.PrepareSend("Send Get Request", &getArgs)
+	conn := openConnection("localhost:9999", nodeIP)
+	conn.Write(packet)
+	conn.Close()
+
+	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+	conn, _ = net.ListenUDP("udp", laddr)
+	fmt.Println("Wait for response")
+	pack, _ := readMessage(conn)
+	fmt.Println(pack)
+	conn.Close()
+
+	if pack.Status == "Success" {
+		// send back json of key/value of Task
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(200)
+		todo := Todo{Task: pack.Key, Description: pack.Val}
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic("error in encoding json to send to client")
+		}
+	}
 }
 
 func readMessage(govecMsg string, conn *net.UDPConn) (*udpComm, net.Addr) {
