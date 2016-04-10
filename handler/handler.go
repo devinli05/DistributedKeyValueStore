@@ -104,21 +104,34 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 		Status:  "Request",
 	}
 
-	fmt.Println("Connect to: " + nodeIP)
-	packet := Logger.PrepareSend("Send Remove Request", removeArgs)
-	conn := openConnection("localhost:9999", nodeIP)
-	conn.Write(packet)
-	conn.Close()
-
-	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
-	conn, _ = net.ListenUDP("udp", laddr)
+	rAddr, err := net.ResolveUDPAddr("udp", nodeUdpAddr)
+	checkError(err)
+	lAddr, err := net.ResolveUDPAddr("udp", rAddr.IP.String()+":0")
+	checkError(err)
+	udpConn, err := net.ListenUDP("udp", lAddr)
+	checkError(err)
+	requestUdp := Logger.PrepareSend("request remove "+todo.Task+":"+todo.Description, removeArgs)
+	udpConn.WriteToUDP(requestUdp, rAddr)
 	fmt.Println("Wait for response")
-	pack, _ := readMessage(conn)
-	fmt.Println(pack)
-	conn.Close()
+	responseUdp, _ := readMessage("response remove "+todo.Task+":"+todo.Description, udpConn)
+	fmt.Println(responseUdp)
+	udpConn.Close()
+
+	// fmt.Println("Connect to: " + nodeIP)
+	// packet := Logger.PrepareSend("Send Remove Request", removeArgs)
+	// conn := openConnection("localhost:9999", nodeIP)
+	// conn.Write(packet)
+	// conn.Close()
+	//
+	// laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+	// conn, _ = net.ListenUDP("udp", laddr)
+	// fmt.Println("Wait for response")
+	// pack, _ := readMessage(conn)
+	// fmt.Println(pack)
+	// conn.Close()
 
 	// IF RECEIVED SUCCESS MESSAGE
-	if pack.Status == "Success" {
+	if responseUdp.Status == "Success" {
 		// send back success ack
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(http.StatusCreated)
@@ -142,24 +155,24 @@ func GetTodo(w http.ResponseWriter, r *http.Request) {
 		Status:  "Request",
 	}
 
-	fmt.Println("Connect to: " + nodeIP)
-	packet := Logger.PrepareSend("Send Get Request", &getArgs)
-	conn := openConnection("localhost:9999", nodeIP)
-	conn.Write(packet)
-	conn.Close()
-
-	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
-	conn, _ = net.ListenUDP("udp", laddr)
+	rAddr, err := net.ResolveUDPAddr("udp", nodeUdpAddr)
+	checkError(err)
+	lAddr, err := net.ResolveUDPAddr("udp", rAddr.IP.String()+":0")
+	checkError(err)
+	udpConn, err := net.ListenUDP("udp", lAddr)
+	checkError(err)
+	requestUdp := Logger.PrepareSend("request get "+task+",", getArgs)
+	udpConn.WriteToUDP(requestUdp, rAddr)
 	fmt.Println("Wait for response")
-	pack, _ := readMessage(conn)
-	fmt.Println(pack)
-	conn.Close()
+	responseUdp, _ := readMessage("response get "+task+":", udpConn)
+	fmt.Println(responseUdp)
+	udpConn.Close()
 
-	if pack.Status == "Success" {
+	if responseUdp.Status == "Success" {
 		// send back json of key/value of Task
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(200)
-		todo := Todo{Task: pack.Key, Description: pack.Val}
+		todo := Todo{Task: responseUdp.Key, Description: responseUdp.Val}
 		if err := json.NewEncoder(w).Encode(todo); err != nil {
 			panic("error in encoding json to send to client")
 		}
