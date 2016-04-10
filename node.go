@@ -625,8 +625,8 @@ func distribute(packet *udpComm, packet_type string) *udpComm {
 		udpPortMutex.Unlock()
 		fmt.Println("Got a response")
 		fmt.Println(response_packet)
-		close(timeout_ch)
-		close(responses)
+		//		close(timeout_ch)
+		//		close(responses)
 		return response_packet
 	case <-timeout_ch:
 		fmt.Println("Timeout occurred, failed to execute command")
@@ -642,8 +642,8 @@ func distribute(packet *udpComm, packet_type string) *udpComm {
 				Status:  "Failed",
 			}
 			fmt.Println(failed)
-			close(timeout_ch)
-			close(responses)
+			//			close(timeout_ch)
+			//			close(responses)
 			return failed
 		case strings.EqualFold(packet_type, "Get"):
 		case strings.EqualFold(packet_type, "Remove"):
@@ -656,8 +656,8 @@ func distribute(packet *udpComm, packet_type string) *udpComm {
 				Status:  "Failed",
 			}
 			fmt.Println(failed)
-			close(timeout_ch)
-			close(responses)
+			//			close(timeout_ch)
+			//			close(responses)
 			return failed
 		}
 	}
