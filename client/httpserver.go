@@ -26,10 +26,6 @@ type Todo struct {
 	Description string `json:"description"`
 }
 
-var todos []Todo
-
-var todolist map[string]string
-
 type udpComm struct {
 	Type    string
 	Key     string
@@ -58,8 +54,6 @@ func Index(w http.ResponseWriter, r *http.Request) {
 func Add(w http.ResponseWriter, r *http.Request) {
 	// read the json from the client at "/add"
 
-	var todo Todo
-
 	// body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))  // limit amount of bytes
 	// if err != nil {
 	//     panic(err)
@@ -75,6 +69,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	//         panic(err)
 	//     }
 	// }
+	var todo Todo
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&todo)
 	if err != nil {
@@ -160,61 +155,110 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 }
 
 // page to list the todos
-func Todos(w http.ResponseWriter, r *http.Request) {
-	// mock items
-	todos = append(todos, Todo{Task: "Write presentation", Description: "DO A GOOD JOB"})
-	todos = append(todos, Todo{Task: "Dance", Description: "LIKE WHEN NO ONE IS WATCHING"})
-	// for k, _ := todolist {
-	//     // get values
-	//     // SEND Get Request
-	//         getArgs := udpComm{
-	//             Type:    "Get",
-	//             Key:     k,
-	//             Val:     "",
-	//             TestVal: "",
-	//             NewVal:  "",
-	//             Status:  "Request",
-	//         }
+// func Todos(w http.ResponseWriter, r *http.Request) {
+// 	// incoming := make(map[string]string)
+// 	var todo Todo
+// 	decoder := json.NewDecoder(r.Body)
+// 	fmt.Println(r.Body)
+// 	err := decoder.Decode(&todo)
+// 	if err != nil {
+// 		w.WriteHeader(400) // http 400 error
+// 		panic("error decoding JSON in RECEIVING GET REQUEST ")
+// 	}
+// 	fmt.Println(todo)
+// body, err := ioutil.ReadAll(r.Body)
+// if err != nil {
+// 	panic("ERROR")
+// }
+// fmt.Println(string(body))
 
-	//         fmt.Println("Connect to: " + nodeIP)
-	//         packet := Logger.PrepareSend("Send Get Request", getArgs)
-	//         conn := openConnection("localhost:9999", nodeIP)
-	//         conn.Write(packet)
-	//         conn.Close()
+// // mock items
+// todos = append(todos, Todo{Task: "Write presentation", Description: "DO A GOOD JOB"})
+// todos = append(todos, Todo{Task: "Dance", Description: "LIKE WHEN NO ONE IS WATCHING"})
 
-	//         laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
-	//         conn, _ = net.ListenUDP("udp", laddr)
-	//         fmt.Println("Wait for response")
-	//         pack, _ := readMessage(conn)
-	//         fmt.Println(pack)
-	//         conn.Close()
-	//     todo =
-	// }
+// incoming["Hello"] = "World"
+// incoming["Goodbye"] = "Dream"
 
-	w.Header().Set("Content-Type", "application/json")
-	// j, _ := json.Marshal(tasks)
-	// w.Write(j)
+// outgoinglist := make(map[string]string)
+//
+// for k, _ := range todolist {
+// 	// get values
+// 	// SEND Get Request
+// 	getArgs := udpComm{
+// 		Type:    "Get",
+// 		Key:     k,
+// 		Val:     "",
+// 		TestVal: "",
+// 		NewVal:  "",
+// 		Status:  "Request",
+// 	}
+//
+// 	fmt.Println("Connect to: " + nodeIP)
+// 	packet := Logger.PrepareSend("Send Get Request", getArgs)
+// 	conn := openConnection("localhost	:9999", nodeIP)
+// 	conn.Write(packet)
+// 	conn.Close()
+//
+// 	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+// 	conn, _ = net.ListenUDP("udp", laddr)
+// 	fmt.Println("Wait for response")
+// 	pack, _ := readMessage(conn)
+// 	fmt.Println(pack)
+// 	outgoinglist[pack.Key] = pack.Val
+// 	conn.Close()
+// }
+// fmt.Print(outgoinglist)
 
-	if err := json.NewEncoder(w).Encode(todos); err != nil {
-		panic(err)
-	}
-}
+// w.Header().Set("Content-Type", "application/json")
+// // j, _ := json.Marshal(tasks)
+// // w.Write(j)
+//
+// if err := json.NewEncoder(w).Encode(todos); err != nil {
+// 	panic(err)
+// }
+// }
 
-func TodoShow(w http.ResponseWriter, r *http.Request) {
+func GetTodo(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	todoId := vars["todoId"]
-	fmt.Fprintln(w, "Todo show:", todoId)
+	task := vars["key"]
+
+	// Get Request
+	getArgs := udpComm{
+		Type:    "Get",
+		Key:     task,
+		Val:     "",
+		TestVal: "",
+		NewVal:  "",
+		Status:  "Request",
+	}
+
+	fmt.Println("Connect to: " + nodeIP)
+	packet := Logger.PrepareSend("Send Get Request", &getArgs)
+	conn := openConnection("localhost:9999", nodeIP)
+	conn.Write(packet)
+	conn.Close()
+
+	laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
+	conn, _ = net.ListenUDP("udp", laddr)
+	fmt.Println("Wait for response")
+	pack, _ := readMessage(conn)
+	fmt.Println(pack)
+	conn.Close()
+
+	if pack.Status == "Success" {
+		// send back json of key/value of Task
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(200)
+		todo := Todo{Task: pack.Key, Description: pack.Val}
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic("error in encoding json to send to client")
+		}
+	}
 }
 
 // Function to build current map of key/values
 
 func main() {
-	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	//     fmt.Fprintf(w, "Testing, %q", html.EscapeString(r.URL.Path))
-	// })
-	// HTTP SERVER AND ROUTER
-	// cssHandler := http.FileServer(http.Dir("./css/"))
-	// jsHandler := http.FileServer(http.Dir("./js/"))
 
 	// Set up GoVector Logging
 	Logger = govec.Initialize("DummyClient", "DummyClient")
@@ -225,8 +269,7 @@ func main() {
 	router.HandleFunc("/", Index)
 	router.HandleFunc("/add", Add).Methods("POST")
 	router.HandleFunc("/remove", Remove)
-	router.HandleFunc("/todos", Todos)
-	router.HandleFunc("/todos/{todoId}", TodoShow)
+	router.HandleFunc("/{key}", GetTodo)
 
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
