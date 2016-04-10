@@ -1049,7 +1049,7 @@ func main() {
 	nodeOrsetBuildAddr = host + ":555" + nodeId
 
 	// Set up GoVector Logging
-	Logger = govec.Initialize("Restarted2", "Restarted2")
+	Logger = govec.Initialize(nodeId, nodeId)
 	LogMutex = &sync.Mutex{}
 	udpPortMutex = &sync.Mutex{}
 
