@@ -1026,9 +1026,9 @@ func contactMyReplicas() {
 				fmt.Println("Adding: " + v)
 				newORset.Add(v, receivedValues[i])
 
-				if !sliceContains(activeKeys, packet.Key) {
-					fmt.Println("Add to activeKeys " + packet.Key)
-					activeKeys = append(activeKeys, packet.Key)
+				if !sliceContains(activeKeys, v) {
+					fmt.Println("Add to activeKeys " + v)
+					activeKeys = append(activeKeys, v)
 				}
 			}
 
