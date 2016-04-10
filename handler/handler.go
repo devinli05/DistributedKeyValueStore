@@ -77,15 +77,15 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	checkError(err)
 	udpConn, err := net.ListenUDP("udp", lAddr)
 	checkError(err)
-	packet := Logger.PrepareSend("forward client http request", putArgs)
-	udpConn.WriteToUDP(packet, rAddr)
+	requestUdp := Logger.PrepareSend("request put "+todo.Task+":"+todo.Description, putArgs)
+	udpConn.WriteToUDP(requestUdp, rAddr)
 	fmt.Println("Wait for response")
-	pack, _ := readMessage(udpConn)
-	fmt.Println(pack)
+	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
+	fmt.Println(responseUdp)
 	udpConn.Close()
 }
 
-func readMessage(conn *net.UDPConn) (*udpComm, net.Addr) {
+func readMessage(govecMsg string, conn *net.UDPConn) (*udpComm, net.Addr) {
 
 	buffer := make([]byte, 1024)
 
@@ -94,7 +94,7 @@ func readMessage(conn *net.UDPConn) (*udpComm, net.Addr) {
 	//errorCheck(err, "Problem with Reading UDP Packet")
 	packet := new(udpComm)
 
-	Logger.UnpackReceive("Receive Message", buffer[:bytesRead], &packet)
+	Logger.UnpackReceive(govecMsg, buffer[:bytesRead], &packet)
 
 	return packet, retAddr
 }

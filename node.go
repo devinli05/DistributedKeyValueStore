@@ -1047,15 +1047,16 @@ func contactMyReplicas() {
 // Main server loop.
 func main() {
 	// Parse args.
-	usage := fmt.Sprintf("Usage: %s [ReplicationFactor] [NodeID]\n",
+	usage := fmt.Sprintf("Usage: %s [ReplicationFactor] [NodeID] [restartFlag]\n",
 		os.Args[0])
-	if len(os.Args) != 3 {
+	if len(os.Args) != 4 {
 		fmt.Printf(usage)
 		os.Exit(1)
 	}
 
 	replicationFactor := os.Args[1]
 	gossipID := os.Args[2]
+	restartFlag := os.Args[3]
 
 	nodeId = gossipID
 	config, err := ioutil.ReadFile("config.json")
@@ -1104,7 +1105,9 @@ func main() {
 
 	// Checks with other nodes to see if any key value pairs need to be added
 	// to this node's orset
-	buildORSET()
+	if strings.EqualFold(restartFlag, "1") {
+		buildORSET()
+	}
 
 	//blocking call to serve http requests
 	log.Fatal(http.ListenAndServe(host+":888"+nodeId, handler.NewRouter(nodeId, nodesUDPAddrMap[nodeId])))
