@@ -83,6 +83,15 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
+	// IF RECEIVED SUCCESS MESSAGE
+	if responseUdp.Status == "Success" {
+		// send back success ack
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic(err)
+		}
+	}
 }
 
 func Remove(w http.ResponseWriter, r *http.Request) {
@@ -116,19 +125,6 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response remove "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
-
-	// fmt.Println("Connect to: " + nodeIP)
-	// packet := Logger.PrepareSend("Send Remove Request", removeArgs)
-	// conn := openConnection("localhost:9999", nodeIP)
-	// conn.Write(packet)
-	// conn.Close()
-	//
-	// laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
-	// conn, _ = net.ListenUDP("udp", laddr)
-	// fmt.Println("Wait for response")
-	// pack, _ := readMessage(conn)
-	// fmt.Println(pack)
-	// conn.Close()
 
 	// IF RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
