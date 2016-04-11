@@ -22,26 +22,29 @@ func NewORMap() *ORMap {
 }
 
 func (o *ORMap) Add(key string, val string, tag string, old []string) string {
-	// clean up maps
-	o.gc(key)
-
-	// if the Map already contains the key, set timestamps
-	if m, ok := o.addMap[key]; ok {
-		for _, t := range old {
-			delete(m, t)
+	if am, ok := o.addMap[key]; ok {
+		// if key is known do observed removal
+		rm, ok := o.removeMap[key]
+		if !ok {
+			rm = make(map[string]string)
 		}
-		m[tag] = val
-		return "Success"
+		for _, t := range old {
+			rm[t] = am[t]
+		}
+		o.removeMap[key] = rm
+		am[tag] = val
+		o.addMap[key] = am
 	} else {
-		// otherwise add the value to the map
-		m := make(map[string]string)
-		m[tag] = val
-		o.addMap[key] = m
-		return "Success"
+		// otherwise add the key to addMap
+		am := make(map[string]string)
+		am[tag] = val
+		o.addMap[key] = am
 	}
+	o.gc(key)
+	return "Success"
 }
 
-func (o *ORMap) Remove(key string, value string) {
+func (o *ORMap) Remove(key string, old []string) {
 	// if key is in the add Map, copy it to the remove map
 	if am, ok := o.addMap[key]; ok {
 		// check if the key is already in remove Map
@@ -49,36 +52,13 @@ func (o *ORMap) Remove(key string, value string) {
 		if !ok {
 			rm = make(map[string]string)
 		}
-		for timestamp, v := range am {
-			if v == value {
-				rm[timestamp] = v
-			}
+		for _, t := range old {
+			rm[t] = am[t]
 		}
 		o.removeMap[key] = rm
 	}
 }
 
-/*
-func (o *ORMap) Contains(key string) bool {
-	addMap, ok := o.addMap[key]
-	if !ok {
-		return false
-	}
-
-	removeMap, ok := o.removeMap[key]
-	if !ok {
-		return true
-	}
-
-	for timestamp, _ := range addMap {
-		if _, ok := removeMap[timestamp]; !ok {
-			return true
-		}
-	}
-
-	return false
-}
-*/
 func (o *ORMap) Get(key string) string {
 	val := ""
 	tag := ""
