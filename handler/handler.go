@@ -50,15 +50,17 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "index.html")
 }
 
-// Function to handle all Add requests (at URI:  /add)
 func Add(w http.ResponseWriter, r *http.Request) {
 	// read the json from the client at "/add"
 	var todo Todo
+
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&todo)
 	if err != nil {
 		panic("error in ADD decoding JSON")
 	}
+
+	fmt.Println(todo)
 
 	// Put Request
 	putArgs := udpComm{
@@ -81,15 +83,6 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
-<<<<<<< HEAD
-
-	// IF RECEIVED SUCCESS MESSAGE
-	// if responseUdp.Status == "Success" {
-	// send back success ack
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-	// }
-=======
 	// IF RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
 		// send back success ack
@@ -99,7 +92,6 @@ func Add(w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 	}
->>>>>>> 4c7d6a194fe6946985233bf6639c9ecf554faf9a
 }
 
 func Remove(w http.ResponseWriter, r *http.Request) {
@@ -134,36 +126,14 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(responseUdp)
 	udpConn.Close()
 
-<<<<<<< HEAD
-	// IF REMOVE RECEIVED SUCCESS MESSAGE
+	// IF RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
 		// send back success ack
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusOK)
-	}
-	// fmt.Println("Connect to: " + nodeIP)
-	// packet := Logger.PrepareSend("Send Remove Request", removeArgs)
-	// conn := openConnection("localhost:9999", nodeIP)
-	// conn.Write(packet)
-	// conn.Close()
-	//
-	// laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
-	// conn, _ = net.ListenUDP("udp", laddr)
-	// fmt.Println("Wait for response")
-	// pack, _ := readMessage(conn)
-	// fmt.Println(pack)
-	// conn.Close()
-
-=======
-	// IF RECEIVED SUCCESS MESSAGE
->>>>>>> 4c7d6a194fe6946985233bf6639c9ecf554faf9a
-	if responseUdp.Status == "Success" {
-		// send back success ack
-		// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusOK)
-		// if err := json.NewEncoder(w).Encode(todo); err != nil {
-		// 	panic(err)
-		// }
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic(err)
+		}
 	}
 }
 
