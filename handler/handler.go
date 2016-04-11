@@ -42,15 +42,16 @@ func NewRouter(nodeId string, udpAddr string) http.Handler {
 	router.HandleFunc("/", Index)
 	router.HandleFunc("/add", Add).Methods("POST")
 	router.HandleFunc("/remove", Remove).Methods("DELETE")
-	router.HandleFunc("/{key}", GetTodo).Methods("GET")
+	router.HandleFunc("/get/{key}", GetTodo).Methods("GET")
 	return router
 }
 
+// INDEX
 func Index(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "index.html")
 }
 
-// Function to handle all Add requests (at URI:  /add)
+// ADD Function to handle all Add requests (at URI:  /add)
 func Add(w http.ResponseWriter, r *http.Request) {
 	// read the json from the client at "/add"
 	var todo Todo
@@ -81,29 +82,21 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
-<<<<<<< HEAD
-
 	// IF RECEIVED SUCCESS MESSAGE
 	// if responseUdp.Status == "Success" {
 	// send back success ack
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+	// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	// w.WriteHeader(http.StatusOK)
 	// }
-=======
-	// IF RECEIVED SUCCESS MESSAGE
-	if responseUdp.Status == "Success" {
-		// send back success ack
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(todo); err != nil {
-			panic(err)
-		}
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(""); err != nil {
+		panic(err)
 	}
->>>>>>> 4c7d6a194fe6946985233bf6639c9ecf554faf9a
 }
 
 func Remove(w http.ResponseWriter, r *http.Request) {
-
 	var todo Todo
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&todo)
@@ -134,36 +127,11 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(responseUdp)
 	udpConn.Close()
 
-<<<<<<< HEAD
 	// IF REMOVE RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
 		// send back success ack
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(http.StatusOK)
-	}
-	// fmt.Println("Connect to: " + nodeIP)
-	// packet := Logger.PrepareSend("Send Remove Request", removeArgs)
-	// conn := openConnection("localhost:9999", nodeIP)
-	// conn.Write(packet)
-	// conn.Close()
-	//
-	// laddr, _ := net.ResolveUDPAddr("udp", "localhost:9999")
-	// conn, _ = net.ListenUDP("udp", laddr)
-	// fmt.Println("Wait for response")
-	// pack, _ := readMessage(conn)
-	// fmt.Println(pack)
-	// conn.Close()
-
-=======
-	// IF RECEIVED SUCCESS MESSAGE
->>>>>>> 4c7d6a194fe6946985233bf6639c9ecf554faf9a
-	if responseUdp.Status == "Success" {
-		// send back success ack
-		// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusOK)
-		// if err := json.NewEncoder(w).Encode(todo); err != nil {
-		// 	panic(err)
-		// }
 	}
 }
 

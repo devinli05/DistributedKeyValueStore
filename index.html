@@ -164,12 +164,18 @@
 		<div class="card-content">
 			Please type a task and description
 		</div>
-		<form id="form" action="/" method="post">
+		<form id="form" action="/add" method="post">
 
 			<input name="task" class="task-name textfield" type="text" placeholder="Task Name">
 			<input name="description" class="task-description textfield" type="text" placeholder="Task Description">
 			<div class="button">
 				<button class="create-btn" type="Submit">Add</button>
+			</div>
+		</form>
+		<form id="get" action="/get" method="get">
+			<input name="get-task" class="task-description textfield" type="text" placeholder="Enter Task Key You Want to Get">
+			<div class ="button">
+				<button class="create-btn" type="Submit">Get</button>
 			</div>
 		</form>
 		<div class="tasks-container" id="todolist">
@@ -235,7 +241,7 @@
 					var key = item.task;
 					$.ajax({
 						type:"GET",
-						url: "/"+key,
+						url: "/get/"+key,
 						dataType: "json",
 						contentType: "application/json",
 						success: function(response) {
