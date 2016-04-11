@@ -153,7 +153,7 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 			outBuf := addGovecLog(msg, retVal)
 			udpConn.WriteToUDP(outBuf, retAddr)
 		} else {
-			retVal := distribute(packet, "Remove")
+			retVal := distribute(getTriplet(packet), "Remove")
 			msg := "Finished " + retVal.Type + " " + retVal.Key + ":" + retVal.Val
 			outBuf := addGovecLog(msg, retVal)
 			udpConn.WriteToUDP(outBuf, retAddr)
@@ -397,23 +397,27 @@ func GetTripletUdp(p *udpComm) *udpComm {
 	return response
 }
 
-func Removeudp(packet *udpComm) *udpComm {
+func Removeudp(p *udpComm) *udpComm {
 	kvMutex.Lock()
 	defer kvMutex.Unlock()
-	ors.Remove(packet.Key, packet.Val)
-	fmt.Println("Remove value: " + packet.Val + " Key: " + packet.Key)
+	response := &udpComm{}
+	*response = *p
+	response.Status = "Success"
+	ors.Remove(p.Key, p.Payload)
+	fmt.Println("Remove value: " + p.Val + " Key: " + p.Key)
+
 	//LogLocalEvent("Local REMOVE " + packet.Key)
-	fmt.Println("Released Log Lock")
-	remove := &udpComm{
+
+	/*remove := &udpComm{
 		Type:    "Remove",
 		Key:     packet.Key,
 		Val:     "",
 		TestVal: "",
 		NewVal:  "",
 		Status:  "Success",
-	}
+	}*/
 	fmt.Println("Returned from Removeudp")
-	return remove
+	return response
 }
 
 func Putudp(packet *udpComm) *udpComm {
