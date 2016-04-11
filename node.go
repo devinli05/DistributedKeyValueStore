@@ -418,7 +418,7 @@ func Getudp(packet *udpComm) *udpComm {
 		return get
 
 	} else {
-		fmt.Println("Got requets for Packet I (" + nodeId + ") dont have")
+		fmt.Println("Got request for Packet I (" + nodeId + ") dont have")
 		get := &udpComm{
 			Type:    "Get",
 			Key:     packet.Key,
@@ -445,7 +445,7 @@ func Getudp(packet *udpComm) *udpComm {
 
 		fmt.Println("Wait for response")
 		packet, _ := readMessage(conn)
-		fmt.Println("Returnd to getUDP function after got a packet")
+		fmt.Println("Returned to getUDP function after got a packet")
 		conn.Close()
 		udpPortMutex.Unlock()
 		fmt.Println("Got a response")

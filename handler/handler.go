@@ -50,17 +50,15 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "index.html")
 }
 
+// Function to handle all Add requests (at URI:  /add)
 func Add(w http.ResponseWriter, r *http.Request) {
 	// read the json from the client at "/add"
 	var todo Todo
-
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&todo)
 	if err != nil {
 		panic("error in ADD decoding JSON")
 	}
-
-	fmt.Println(todo)
 
 	// Put Request
 	putArgs := udpComm{
@@ -83,6 +81,13 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
+
+	// IF RECEIVED SUCCESS MESSAGE
+	// if responseUdp.Status == "Success" {
+	// send back success ack
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	// }
 }
 
 func Remove(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +122,12 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(responseUdp)
 	udpConn.Close()
 
+	// IF REMOVE RECEIVED SUCCESS MESSAGE
+	if responseUdp.Status == "Success" {
+		// send back success ack
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusOK)
+	}
 	// fmt.Println("Connect to: " + nodeIP)
 	// packet := Logger.PrepareSend("Send Remove Request", removeArgs)
 	// conn := openConnection("localhost:9999", nodeIP)
@@ -130,14 +141,13 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	// fmt.Println(pack)
 	// conn.Close()
 
-	// IF RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
 		// send back success ack
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(todo); err != nil {
-			panic(err)
-		}
+		// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusOK)
+		// if err := json.NewEncoder(w).Encode(todo); err != nil {
+		// 	panic(err)
+		// }
 	}
 }
 
