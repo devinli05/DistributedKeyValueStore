@@ -1084,7 +1084,7 @@ func contactNodes() {
 	var altIDInt = 0
 	var ownerUDPAddr = ""
 	requestBuffer := make(map[string]string)
-	for counter < repFactor+1 {
+	for counter < repFactor-1 {
 		fmt.Println("Current counter: ")
 		fmt.Println(counter)
 		if counter == repFactor {
@@ -1221,7 +1221,7 @@ func contactMyReplicas() {
 	var altIDInt = 0
 	var ownerUDPAddr = ""
 	requestBuffer := make(map[string]string)
-	for counter < repFactor+1 {
+	for counter < repFactor-1 {
 		fmt.Println("Current counter: ")
 		fmt.Println(counter)
 		if counter == repFactor {
