@@ -27,6 +27,8 @@ type udpComm struct {
 	TestVal string
 	NewVal  string
 	Status  string
+	Payload []string
+	Tag     string
 }
 
 type udpOrsetBuild struct {
@@ -44,7 +46,7 @@ var nodeId string
 var nodeUDPAddr string
 var nodeOrsetBuildAddr string
 
-var ors *orset.ORSet
+var ors *orset.ORMap
 var consHash *chash.Ring
 
 var nodesUDPAddrMap map[string]string
@@ -114,18 +116,29 @@ func handleRequestUDP() {
 		packet, retAddr := readMessage(conn)
 		fmt.Println(nodeId)
 		fmt.Println("Got a packet")
-		go handleRequestUDPHelper(conn, packet, retAddr)
+		go handleRequestUDPHelper(packet, retAddr)
 	}
 }
 
-func handleRequestUDPHelper(udpConn *net.UDPConn, packet *udpComm, retAddr *net.UDPAddr) {
+func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
+	host, _, err := net.SplitHostPort(nodeUDPAddr)
+	checkError(err)
+	udpConn := startListening(host + ":0")
+	defer udpConn.Close()
 
 	if packet.Type == "Get" {
 		fmt.Println("Got a GET packet")
-		retVal := Getudp(packet)
-		msg := "Retrieve " + retVal.Key + ":" + retVal.Val
-		outBuf := addGovecLog(msg, retVal)
-		udpConn.WriteToUDP(outBuf, retAddr)
+		if packet.Status == "GetTriplet" {
+			res := GetTripletUdp(packet)
+			msg := "Triplet " + res.Key + ":" + strings.Join(res.Payload, " ")
+			buf := addGovecLog(msg, res)
+			udpConn.WriteToUDP(buf, retAddr)
+		} else {
+			retVal := Getudp(packet)
+			msg := "Retrieve " + retVal.Key + ":" + retVal.Val
+			outBuf := addGovecLog(msg, retVal)
+			udpConn.WriteToUDP(outBuf, retAddr)
+		}
 	} else if packet.Type == "Remove" {
 
 		fmt.Println("Got a REMOVE packet")
@@ -148,7 +161,7 @@ func handleRequestUDPHelper(udpConn *net.UDPConn, packet *udpComm, retAddr *net.
 			outBuf := addGovecLog(msg, retVal)
 			udpConn.WriteToUDP(outBuf, retAddr)
 		} else {
-			retVal := distribute(packet, "Put")
+			retVal := distribute(getTriplet(packet), "Put")
 			msg := "Finished " + retVal.Type + " " + retVal.Key + ":" + retVal.Val
 			outBuf := addGovecLog(msg, retVal)
 			udpConn.WriteToUDP(outBuf, retAddr)
@@ -259,7 +272,7 @@ func TestSetudp(packet *udpComm) *udpComm {
 
 		if retVal == packet.TestVal {
 			LogLocalEvent("Local TESTSET TestVal matches current Val")
-			ors.Add(packet.Key, packet.NewVal)
+			ors.Add(packet.Key, packet.NewVal, packet.Tag, packet.Payload)
 
 			if !sliceContains(activeKeys, packet.Key) {
 				activeKeys = append(activeKeys, packet.Key)
@@ -400,13 +413,29 @@ func Getudp(packet *udpComm) *udpComm {
 	}
 }
 
+func GetTripletUdp(p *udpComm) *udpComm {
+	kvMutex.Lock()
+	defer kvMutex.Unlock()
+	triplets, newTag := ors.GetTriplet(p.Key)
+	response := &udpComm{}
+	*response = *p // copy values from p to response
+	//response := &udpComm{Type: p.Type, Key: p.Key, Val: p.Val}
+	response.Status = "Success"
+	response.Payload = triplets
+	response.Tag = newTag
+	fmt.Println(triplets)
+	fmt.Println(response)
+	//LogLocalEvent("Local known key:" + p.Key + " tag:" + strings.Join(triplets, " "))
+	return response
+}
+
 func Removeudp(packet *udpComm) *udpComm {
 	kvMutex.Lock()
 	defer kvMutex.Unlock()
 	ors.Remove(packet.Key, packet.Val)
 	fmt.Println("Remove value: " + packet.Val + " Key: " + packet.Key)
 
-	LogLocalEvent("Local REMOVE " + packet.Key)
+	//LogLocalEvent("Local REMOVE " + packet.Key)
 
 	fmt.Println("Released Log Lock")
 	remove := &udpComm{
@@ -425,7 +454,10 @@ func Putudp(packet *udpComm) *udpComm {
 
 	kvMutex.Lock()
 	defer kvMutex.Unlock()
-	var retVal = ors.Add(packet.Key, packet.Val)
+	fmt.Println(packet)
+	put := &udpComm{}
+	*put = *packet
+	put.Status = ors.Add(packet.Key, packet.Val, packet.Tag, packet.Payload)
 
 	fmt.Println("Put contain test")
 	fmt.Println(sliceContains(activeKeys, packet.Key))
@@ -437,16 +469,16 @@ func Putudp(packet *udpComm) *udpComm {
 
 	fmt.Println("Put value: " + packet.Key)
 
-	LogLocalEvent("Local Put returned: " + retVal)
+	//LogLocalEvent("Local Put returned: " + retVal)
 
-	put := &udpComm{
+	/*put := &udpComm{
 		Type:    "Put",
 		Key:     packet.Key,
 		Val:     packet.Val,
 		TestVal: "",
 		NewVal:  "",
 		Status:  "Success",
-	}
+	}*/
 	fmt.Println("Returned from Putudp in " + nodeId)
 	return put
 }
@@ -457,6 +489,104 @@ func Putudp(packet *udpComm) *udpComm {
 // ----------------------------------------
 // NODE DISTRIBUTION LOGIC
 // ----------------------------------------
+
+func getTriplet(packet *udpComm) *udpComm {
+	ownerId := consHash.Find(packet.Key)
+	ID, _ := strconv.Atoi(ownerId)
+	var counter = 0
+	var i = 0
+	var altID = ""
+	var altIDInt = 0
+	var ownerUDPAddr = ""
+	var msg []byte
+	responses := make(chan *udpComm, repFactor)
+	requestBuffer := make(map[string]string)
+	fmt.Println(nodeIdList)
+	for counter < repFactor+1 {
+		fmt.Println("Current counter: ")
+		fmt.Println(counter)
+		if counter == repFactor {
+			break
+		}
+		var useAlt = false
+		iter_Check := ID + i
+		convert := strconv.Itoa(iter_Check)
+		if _, ok := inactiveNodes[convert]; ok {
+			fmt.Println("Owner node is inactive")
+			useAlt = true
+			altID = proxyNodes[convert]
+			altIDInt, _ = strconv.Atoi(altID)
+		}
+		if ID+i < len(nodeIdList) {
+			if useAlt {
+				fmt.Println("Storing in alternate:")
+				fmt.Println(altIDInt)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+				requestBuffer[altID] = ownerUDPAddr
+			} else {
+				fmt.Println("Storing in:")
+				fmt.Println(iter_Check)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+				x := strconv.Itoa(iter_Check)
+				requestBuffer[x] = ownerUDPAddr
+				//}
+			}
+			i++
+			counter++
+		} else {
+			ID = 0
+			i = 0
+		}
+	}
+	req := &udpComm{Key: packet.Key, Val: packet.Val, Type: "Get"}
+	req.Status = "GetTriplet"
+	msg = addGovecLog("Get triplets for key:"+req.Key, req)
+	udpPortMutex.Lock()
+	defer udpPortMutex.Unlock()
+	for m, n := range requestBuffer {
+		if strings.EqualFold(m, nodeId) {
+			//fmt.Println("Storing to self")
+			response := GetTripletUdp(req)
+			fmt.Println(response)
+			return response
+		}
+		conn := openConnection(nodeUDPAddr, n)
+
+		laddr, err := net.ResolveUDPAddr("udp", n)
+		errorCheck(err, "Something is Wrong with the given local address")
+		fmt.Println("Send request to " + n + " From " + nodeUDPAddr)
+
+		conn.WriteTo(msg, laddr)
+		conn.Close()
+	}
+
+	go handleResponse(nodeUDPAddr, ownerUDPAddr, responses)
+	timeout_ch := make(chan bool, 1)
+	go func() {
+		time.Sleep(timeout)
+		timeout_ch <- true
+	}()
+
+	fmt.Println("Waiting for response")
+	failed := &udpComm{Key: packet.Key, Val: packet.Val, Status: "Failed"}
+	select {
+	case response_packet := <-responses:
+		fmt.Println(response_packet)
+		return response_packet
+	case <-timeout_ch:
+		switch {
+		case strings.EqualFold(packet.Type, "Put"):
+			failed.Type = "Put"
+		case strings.EqualFold(packet.Type, "Get"):
+			failed.Type = "Get"
+		case strings.EqualFold(packet.Type, "Remove"):
+			failed.Type = "Remove"
+		}
+		fmt.Println(failed)
+	}
+	failed.Type = "Default"
+	return failed
+}
 
 func distribute(packet *udpComm, packet_type string) *udpComm {
 	ownerId := consHash.Find(packet.Key)
@@ -475,32 +605,44 @@ func distribute(packet *udpComm, packet_type string) *udpComm {
 	fmt.Println(nodeIdList)
 	switch {
 	case strings.EqualFold(packet_type, "Put"):
-		put = &udpComm{
+		put = &udpComm{}
+		*put = *packet
+		put.Type = "Put"
+		put.Status = "Store"
+		/*put = &udpComm{
 			Type:    "Put",
 			Key:     packet.Key,
 			Val:     packet.Val,
 			TestVal: "",
 			NewVal:  "",
 			Status:  "Store",
-		}
+		}*/
 	case strings.EqualFold(packet_type, "Get"):
-		get = &udpComm{
+		get = &udpComm{}
+		*get = *packet
+		get.Type = "Get"
+		get.Status = "Request"
+		/*get = &udpComm{
 			Type:    "Get",
 			Key:     packet.Key,
 			Val:     packet.Val,
 			TestVal: "",
 			NewVal:  "",
 			Status:  "Request",
-		}
+		}*/
 	case strings.EqualFold(packet_type, "Remove"):
-		remove = &udpComm{
+		remove = &udpComm{}
+		*remove = *packet
+		remove.Type = "Remove"
+		remove.Status = "Remove"
+		/*remove = &udpComm{
 			Type:    "Remove",
 			Key:     packet.Key,
 			Val:     packet.Val,
 			TestVal: "",
 			NewVal:  "",
 			Status:  "Remove",
-		}
+		}*/
 	}
 	for counter < repFactor+1 {
 		fmt.Println("Current counter: ")
@@ -995,10 +1137,10 @@ func contactMyReplicas() {
 			receivedKeys := packet.Keys
 			receivedValues := packet.Values
 
-			newORset := orset.NewORSet()
+			newORset := orset.NewORMap()
 			for i, v := range receivedKeys {
 				fmt.Println("Adding: " + v)
-				newORset.Add(v, receivedValues[i])
+				newORset.Add(v, receivedValues[i], "", make([]string, 0))
 
 				if !sliceContains(activeKeys, v) {
 					fmt.Println("Add to activeKeys " + v)
@@ -1068,7 +1210,7 @@ func main() {
 	numberPortions := 1024
 	var hashFunction chash.Hash = nil
 	consHash = chash.New(numberPortions, nodeIdList, hashFunction)
-	ors = orset.NewORSet()
+	ors = orset.NewORMap()
 
 	repFactor, err = strconv.Atoi(replicationFactor)
 	checkError(err)
