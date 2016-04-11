@@ -31,7 +31,7 @@ type udpComm struct {
 	Tag     string
 }
 
-type udpOrsetBuild struct {
+type udpOrset struct {
 	Keys   []string
 	Values []string
 	Status string
@@ -193,6 +193,27 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 		udpPortMutex.Unlock()
 		fmt.Println("finished with build packet request")
 
+	} else if packet.Type == "Replica" {
+		fmt.Println("Got a Replica Packet from: " + retAddr.String())
+		retVal := createNodeReplicaOrset(packet.Status)
+
+		fmt.Println("Keys:")
+		fmt.Println(retVal.Keys)
+		udpPortMutex.Lock()
+		fmt.Println("Replica packet get udp lock")
+		conn := openConnection(nodeUDPAddr, retAddr.String())
+		fmt.Println("Connection open to reply to Replica packet")
+		LogMutex.Lock()
+		fmt.Println("Replica packet handle just got log lock")
+		fmt.Println(retVal)
+		outBuf := Logger.PrepareSend("Sending Replica Request", retVal)
+		fmt.Println("attempt to release govector lock")
+		LogMutex.Unlock()
+		fmt.Println("sending Replica packet response")
+		conn.WriteTo(outBuf, retAddr)
+		conn.Close()
+		udpPortMutex.Unlock()
+		fmt.Println("finished with Replica packet request")
 	} else {
 		//TESTSET
 		fmt.Println("Got a TESTSET packet")
@@ -983,7 +1004,7 @@ func LogLocalEvent(msg string) {
 // if key belongs to callingNode then place
 // key in retKeys and the corresponding value in retValues
 // return all keys and values that belong to callingNode
-func createNodeOrset(callingNode string) *udpOrsetBuild {
+func createNodeOrset(callingNode string) *udpOrset {
 	kvMutex.Lock()
 
 	var retKeys []string
@@ -1004,7 +1025,38 @@ func createNodeOrset(callingNode string) *udpOrsetBuild {
 		}
 	}
 	kvMutex.Unlock()
-	orset := &udpOrsetBuild{
+	orset := &udpOrset{
+		Keys:   retKeys,
+		Values: retValues,
+		Status: "Reply" + nodeId,
+	}
+
+	return orset
+}
+
+func createNodeReplicaOrset(callingNode string) *udpOrset {
+	kvMutex.Lock()
+
+	var retKeys []string
+	var retValues []string
+
+	fmt.Println("activekeys")
+	fmt.Println(activeKeys)
+
+	for _, v := range activeKeys {
+		fmt.Println("Building Orset for my Replica: " + callingNode)
+		fmt.Println("key: " + v)
+		fmt.Println(consHash.Find(v))
+		fmt.Println(callingNode)
+
+		if consHash.Find(v) == nodeId {
+			retKeys = append(retKeys, v)
+			retValues = append(retValues, ors.Get(v))
+		}
+	}
+
+	kvMutex.Unlock()
+	orset := &udpOrset{
 		Keys:   retKeys,
 		Values: retValues,
 		Status: "Reply" + nodeId,
@@ -1016,8 +1068,145 @@ func createNodeOrset(callingNode string) *udpOrsetBuild {
 func buildORSET() {
 
 	contactMyReplicas()
-	//contactNodes()
+	contactNodes()
 	fmt.Println("Finished building orset")
+}
+
+func contactNodes() {
+	fmt.Println("contactNodes")
+	//totalNodes := len(nodeIdList)
+
+	val, _ := strconv.Atoi(nodeId)
+	currentNode := val - 1
+	var counter = 0
+	var i = 0
+	var altID = ""
+	var altIDInt = 0
+	var ownerUDPAddr = ""
+	requestBuffer := make(map[string]string)
+	for counter < repFactor+1 {
+		fmt.Println("Current counter: ")
+		fmt.Println(counter)
+		if counter == repFactor {
+			break
+		}
+		var useAlt = false
+		iter_Check := currentNode - i
+		convert := strconv.Itoa(iter_Check)
+		if _, ok := inactiveNodes[convert]; ok {
+			fmt.Println("Owner node is inactive")
+			useAlt = true
+			altID = proxyNodes[convert]
+			altIDInt, _ = strconv.Atoi(altID)
+		}
+		if currentNode-i >= 0 {
+			if useAlt {
+				fmt.Println("Using alternate node:")
+				fmt.Println(altIDInt)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[altIDInt]]
+				requestBuffer[altID] = ownerUDPAddr
+			} else {
+				fmt.Println("Using node:")
+				fmt.Println(iter_Check)
+				ownerUDPAddr = nodesUDPAddrMap[nodeIdList[iter_Check]]
+				x := strconv.Itoa(iter_Check)
+				requestBuffer[x] = ownerUDPAddr
+				//}
+			}
+			i++
+			counter++
+		} else {
+			currentNode = len(nodeIdList)
+			i = 1
+		}
+	}
+
+	//	for i := 1; i <= repFactor-1; i++ {
+	fmt.Println("contacting Replicas")
+	for _, j := range requestBuffer {
+		//if currentNode >= totalNodes {
+		//	currentNode = 0
+		//}
+
+		build := &udpComm{
+			Type:    "Replica",
+			Key:     "",
+			Val:     "",
+			TestVal: "",
+			NewVal:  "",
+			Status:  nodeId,
+		}
+
+		LogMutex.Lock()
+		msg := Logger.PrepareSend("Sending Replica Request to Replica", build)
+		LogMutex.Unlock()
+
+		fmt.Println("Prepped message")
+
+		fmt.Println("got udp lock")
+		//fmt.Println("Contacting Replica: " + nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		//conn := openConnection(nodeOrsetBuildAddr, nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		fmt.Println("Contacting Node: " + j)
+		conn := openConnection(nodeOrsetBuildAddr, j)
+
+		fmt.Println("Opened connection to Node")
+
+		//laddr, err := net.ResolveUDPAddr("udp", nodesUDPAddrMap[strconv.Itoa(currentNode)])
+		laddr, err := net.ResolveUDPAddr("udp", j)
+		errorCheck(err, "Something is Wrong with the given local address")
+		fmt.Println("Sending Replica Request")
+
+		conn.WriteTo(msg, laddr)
+		conn.Close()
+
+		conn = openConnection(nodeOrsetBuildAddr, j)
+		fmt.Println("Open connection and set timeout")
+		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+
+		fmt.Println("Waiting for response to Replica Request")
+		buffer := make([]byte, 1024)
+		bytesRead, _, err := conn.ReadFromUDP(buffer)
+		fmt.Println("No longer waiting")
+		conn.Close()
+
+		fmt.Println("Error")
+		fmt.Println(err)
+		if err == nil {
+			fmt.Println("I got a response")
+			packet := new(udpOrset)
+
+			fmt.Println("Keys")
+			fmt.Println(packet.Keys)
+			fmt.Println("Values")
+			fmt.Println(packet.Values)
+
+			LogMutex.Lock()
+			Logger.UnpackReceive("Receive Message", buffer[:bytesRead], &packet)
+			LogMutex.Unlock()
+			fmt.Println(packet)
+			kvMutex.Lock()
+
+			receivedKeys := packet.Keys
+			receivedValues := packet.Values
+
+			newORset := orset.NewORMap()
+			for i, v := range receivedKeys {
+				fmt.Println("Adding: " + v)
+				newORset.Add(v, receivedValues[i], "", make([]string, 0))
+
+				if !sliceContains(activeKeys, v) {
+					fmt.Println("Add to activeKeys " + v)
+					activeKeys = append(activeKeys, v)
+				}
+			}
+
+			ors.Merge(newORset)
+			kvMutex.Unlock()
+		}
+
+		//currentNode++
+
+	}
 }
 
 func contactMyReplicas() {
@@ -1121,7 +1310,7 @@ func contactMyReplicas() {
 		fmt.Println(err)
 		if err == nil {
 			fmt.Println("I got a response")
-			packet := new(udpOrsetBuild)
+			packet := new(udpOrset)
 
 			fmt.Println("Keys")
 			fmt.Println(packet.Keys)
