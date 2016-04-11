@@ -29,7 +29,6 @@ type udpComm struct {
 }
 
 var nodeUdpAddr string
-
 var Logger *govec.GoLog
 
 //var LogMutex *sync.Mutex
@@ -55,11 +54,14 @@ func Index(w http.ResponseWriter, r *http.Request) {
 func Add(w http.ResponseWriter, r *http.Request) {
 	// read the json from the client at "/add"
 	var todo Todo
+
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&todo)
 	if err != nil {
 		panic("error in ADD decoding JSON")
 	}
+
+	fmt.Println(todo)
 
 	// Put Request
 	putArgs := udpComm{
@@ -83,16 +85,13 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(responseUdp)
 	udpConn.Close()
 	// IF RECEIVED SUCCESS MESSAGE
-	// if responseUdp.Status == "Success" {
-	// send back success ack
-	// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	// w.WriteHeader(http.StatusOK)
-	// }
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(""); err != nil {
-		panic(err)
+	if responseUdp.Status == "Success" {
+		// send back success ack
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -127,11 +126,14 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(responseUdp)
 	udpConn.Close()
 
-	// IF REMOVE RECEIVED SUCCESS MESSAGE
+	// IF RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
 		// send back success ack
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -174,16 +176,12 @@ func GetTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 func readMessage(govecMsg string, conn *net.UDPConn) (*udpComm, net.Addr) {
-
 	buffer := make([]byte, 1024)
-
 	bytesRead, retAddr, err := conn.ReadFrom(buffer)
 	checkError(err)
 	//errorCheck(err, "Problem with Reading UDP Packet")
 	packet := new(udpComm)
-
 	Logger.UnpackReceive(govecMsg, buffer[:bytesRead], &packet)
-
 	return packet, retAddr
 }
 
