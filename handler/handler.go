@@ -81,6 +81,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	responseUdp, _ := readMessage("response put "+todo.Task+":"+todo.Description, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
+<<<<<<< HEAD
 
 	// IF RECEIVED SUCCESS MESSAGE
 	// if responseUdp.Status == "Success" {
@@ -88,6 +89,17 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	// }
+=======
+	// IF RECEIVED SUCCESS MESSAGE
+	if responseUdp.Status == "Success" {
+		// send back success ack
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(todo); err != nil {
+			panic(err)
+		}
+	}
+>>>>>>> 4c7d6a194fe6946985233bf6639c9ecf554faf9a
 }
 
 func Remove(w http.ResponseWriter, r *http.Request) {
@@ -122,6 +134,7 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(responseUdp)
 	udpConn.Close()
 
+<<<<<<< HEAD
 	// IF REMOVE RECEIVED SUCCESS MESSAGE
 	if responseUdp.Status == "Success" {
 		// send back success ack
@@ -141,6 +154,9 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	// fmt.Println(pack)
 	// conn.Close()
 
+=======
+	// IF RECEIVED SUCCESS MESSAGE
+>>>>>>> 4c7d6a194fe6946985233bf6639c9ecf554faf9a
 	if responseUdp.Status == "Success" {
 		// send back success ack
 		// w.Header().Set("Content-Type", "application/json; charset=UTF-8")
