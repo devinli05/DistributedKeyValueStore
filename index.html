@@ -1,0 +1,264 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Distributed To Do List</title>
+	<meta name="description" content="cs416-Team">
+
+	<link href='https://fonts.googleapis.com/css?family=Roboto:400,700,900|Lato:400,700' rel='stylesheet' type='text/css'>
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			background: #D7D7D7;
+		}
+
+		.card {
+			margin-left: auto;
+			margin-right: auto;
+			background: #FFFFFF;
+			padding: 30px;
+			border: 1px solid #979797;
+			border-radius: 8px;
+			display: block;
+			margin: auto;
+			position: absolute;
+			top: 0;
+			left: 0;
+			bottom: 0;
+			right: 0;
+			width: 600px;
+			height: 700px;
+		}
+
+			.card-title {
+				font-family: 'Roboto', sans-serif;
+				font-weight: 700;
+				font-size: 36px;
+				color: #4A4A4A;
+				line-height: 44px;
+				text-align: left;
+				width: 100%;
+				height: 44px;
+				margin-bottom: 5px;
+			}
+
+
+			.card-content {
+				font-family: 'Roboto', sans-serif;
+				font-weight: 400;
+				font-size: 26.49px;
+				color: #4A4A4A;
+				line-height: 26px;
+				text-align: left;
+				width: 100%;
+				margin-bottom: 20px;
+			}
+
+			.textfield {
+				background: #F5F5F5;
+				box-shadow: inset 0px 1px 1px 0px rgba(0,0,0,0.20) ;
+				border-radius: 4px;
+				width: 450px;
+				height: 46px;
+				border: 0px;
+				padding-left: 23px;
+				padding-right: 23px;
+				font-size: 20px;
+				line-height: 20px;
+			}
+
+			.create-btn {
+				width: 78px;
+				height: 46px;
+				margin-left: 3px;
+				background: none;
+				background-color: #2E9FFF;
+				border: 0;
+				border-radius: 4px;
+				font-family: 'Lato', sans-serif;
+				font-weight: 700;
+				font-size: 17px;
+				color: #FFFFFF;
+				line-height: 32px;
+				cursor: pointer;
+			} .create-btn:disabled {
+				opacity: 0.44;
+				background: #9B9B9B;
+				cursor: default;
+			}
+
+		.tasks-container {
+			height: auto;
+			margin-top: 35px;
+			background-color: #eee;
+			padding: 8px;
+			overflow: auto;
+			font-family: 'Roboto', sans-serif;
+			font-weight: 400;
+			font-size: 14px;
+		}
+
+			.task-item {
+				background-color: #fff;
+				height: 60px;
+				display: -webkit-box;
+				display: -moz-box;
+				display: -ms-flexbox;
+				display: -webkit-flex;
+				display: flex;
+				-webkit-flex-flow: row wrap;
+				justify-content: space-between;
+				margin-bottom: 8px;
+				font-family: 'Roboto', sans-serif;
+				font-weight: 400;
+				font-size: 18px;
+			} .task-item:hover {
+				background-color: #f6f6f6;
+			}
+
+				.task-item-description {
+					font-family: 'Roboto', sans-serif;
+					font-weight: 400;
+					font-size: 24px;
+					color: #4A4A4A;
+					line-height: 24px;
+					margin: 12px 0 12px 30px;
+					width: 380px;
+					vertical-align: middle;
+					background-color: transparent;
+					border: 0;
+				}
+
+
+				.task-item-check {
+					position: relative;
+					width: 76px;
+					height: 60px;
+					background-color: #2E9FFF;
+					border-left: 5px solid #82CAFF;
+					vertical-align: middle;
+/*					background-image: url("../images/checked.png");
+*/					background-repeat: no-repeat;
+					background-size: 30px 25px;
+					background-position: 20px 18px;
+					cursor: pointer;
+				}
+
+				.task-item-check:hover {
+					background-color: #4CC417;
+					border-left: 5px solid #7FE817;
+				}
+	</style>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+</head>
+
+<body>
+
+	<div class="card">
+		<div class="card-title">To Do List</div>
+
+		<div class="card-content">
+			Please type a task and description
+		</div>
+		<form id="form" action="/" method="post">
+
+			<input name="task" class="task-name textfield" type="text" placeholder="Task Name">
+			<input name="description" class="task-description textfield" type="text" placeholder="Task Description">
+			<div class="button">
+				<button class="create-btn" type="Submit">Add</button>
+			</div>
+		</form>
+		<div class="tasks-container" id="todolist">
+			<ul id="tasks"></ul>
+			<button class="create-btn" id="refresh" type="submit">Refresh</button>
+		</div>
+	</div>
+
+	<script>
+		// global local task list
+		var tasklist = [];
+
+		// Function to convert form data to JSON
+		function ConvertFormToJSON(form) {
+		    var array = jQuery(form).serializeArray();
+		    var json = {};
+
+		    jQuery.each(array, function() {
+		        json[this.name] = this.value || '';
+		    });
+		    return json;
+		}
+
+		jQuery(document).on('ready',function() {
+
+			// ADD TASK FUNCTION
+			$('form').bind('submit', function(event){
+				event.preventDefault();
+				var form = this;
+				var json = ConvertFormToJSON(form);
+				console.log(json);
+				$.ajax({
+					type:"POST",
+					url: "/add",   /*SERVER URL */
+					data: JSON.stringify(json),
+					dataType: "json",
+					contentType: "application/json",
+					success: function(newtask) {
+						console.log('New Task Added')
+						var t = {"task":json.task, "description":json.description};
+						// if key exists, update the value only
+						if (!(t.task in tasklist)) {
+							tasklist.push(t);
+						} else {
+							tasklist[t.task] = t.description;
+						}
+						$("form").trigger("reset"); // clear form after success!
+					},
+					error: function(err) {
+						alert('error adding task' + err);
+					}
+				});
+				return true;
+			});
+			// Function when client clicks Update Button
+			$('#refresh').click(function() {
+				GetJSONData();
+			});
+
+			// GET TODO LIST
+			function GetJSONData() {
+				$('#tasks').empty();  // clear list
+				$.each(tasklist, function(i, item) {
+					var key = item.task;
+					$.ajax({
+						type:"GET",
+						url: "/"+key,
+						dataType: "json",
+						contentType: "application/json",
+						success: function(response) {
+							console.log('Successful Get')
+							console.log(response)
+							if (response.description != null) {
+								$('ul').append("<li><b>Task:</b> " + response.task +
+									", <b>Description:</b> " + response.description + "</li>");
+									$(this).fadeIn(500);
+								}
+							},
+						error: function() {
+							console.log('error getting todo:'+key);
+						}
+					});
+				});
+			}
+			// Auto REFRESH CODE
+			// window.setInterval(function(){
+			//   	GetJSONData(); /// call your function here
+			// }, 5000);
+		});
+	</script>
+</body>
+</html>
