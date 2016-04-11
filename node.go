@@ -174,12 +174,6 @@ func handleRequestUDPHelper(packet *udpComm, retAddr *net.UDPAddr) {
 	} else if packet.Type == "Build" {
 		fmt.Println("Got a Build Packet from: " + retAddr.String())
 		retVal := createNodeOrset(packet.Status)
-		//		msg := "Build " + retVal.Keys + ":" + retVal.Values
-		//		LogMutex.Lock()
-		//		outBuf := Logger.PrepareSend(msg, retVal)
-		//		LogMutex.Unlock()
-		//outBuf := addGovecLog(msg, retVal)
-		//		udpConn.WriteToUDP(outBuf, retAddr)
 		fmt.Println("Keys:")
 		fmt.Println(retVal.Keys)
 		udpPortMutex.Lock()
@@ -367,27 +361,12 @@ func TestSetudp(packet *udpComm) *udpComm {
 }
 
 func Getudp(packet *udpComm) *udpComm {
-
-	//	ownerId := consHash.Find(packet.Key)
-	//	for {
-	//		if _, ok := inactiveNodes[ownerId]; ok {
-	//			iterate, _ := strconv.Atoi(ownerId)
-	//			iterate++
-	//			ownerId = strconv.Itoa(iterate)
-	//		} else {
-	//			break
-	//		}
-	//	}
-	//	ownerUDPAddr := nodesUDPAddrMap[ownerId]
-
-	//	if strings.EqualFold(ownerUDPAddr, nodesUDPAddrMap[nodeId]) {
-	//		fmt.Println("I " + nodeId + " have the value")
 	kvMutex.Lock()
 	defer kvMutex.Unlock()
 	var retVal = ors.Get(packet.Key)
 	fmt.Println("Got value: " + retVal)
 
-	LogLocalEvent("Local GET returned: " + retVal)
+	//LogLocalEvent("Local GET returned: " + retVal)
 
 	fmt.Println("Released Log Lock")
 	get := &udpComm{
@@ -400,43 +379,6 @@ func Getudp(packet *udpComm) *udpComm {
 	}
 	fmt.Println("Returned from Getudp")
 	return get
-
-	//	} else {
-	//		fmt.Println("Got request for Packet I (" + nodeId + ") dont have")
-	//		get := &udpComm{
-	//			Type:    "Get",
-	//			Key:     packet.Key,
-	//			Val:     "",
-	//			TestVal: "",
-	//			NewVal:  "",
-	//			Status:  "Request",
-	//		}
-	//		//		LogMutex.Lock()
-	//		//		msg := Logger.PrepareSend("Sending Message", get)
-	//		msg := "Retrieve " + get.Key + ":" + get.Val
-	//		outBuf := addGovecLog(msg, get)
-	//		//		LogMutex.Unlock()
-	//		udpPortMutex.Lock()
-	//		conn := openConnection(nodeUDPAddr, ownerUDPAddr)
-
-	//		laddr, err := net.ResolveUDPAddr("udp", ownerUDPAddr)
-	//		errorCheck(err, "Something is Wrong with the given local address")
-	//		fmt.Println("Send request to " + ownerUDPAddr + " From " + nodeUDPAddr)
-
-	//		conn.WriteToUDP(outBuf, laddr)
-
-	//		conn.Close()
-	//		conn = openConnection(nodeUDPAddr, ownerUDPAddr)
-
-	//		fmt.Println("Wait for response")
-	//		packet, _ := readMessage(conn)
-	//		fmt.Println("Returned to getUDP function after got a packet")
-	//		conn.Close()
-	//		udpPortMutex.Unlock()
-	//		fmt.Println("Got a response")
-
-	//		return packet
-	//	}
 }
 
 func GetTripletUdp(p *udpComm) *udpComm {
@@ -460,9 +402,7 @@ func Removeudp(packet *udpComm) *udpComm {
 	defer kvMutex.Unlock()
 	ors.Remove(packet.Key, packet.Val)
 	fmt.Println("Remove value: " + packet.Val + " Key: " + packet.Key)
-
 	//LogLocalEvent("Local REMOVE " + packet.Key)
-
 	fmt.Println("Released Log Lock")
 	remove := &udpComm{
 		Type:    "Remove",
@@ -477,34 +417,20 @@ func Removeudp(packet *udpComm) *udpComm {
 }
 
 func Putudp(packet *udpComm) *udpComm {
-
 	kvMutex.Lock()
 	defer kvMutex.Unlock()
 	fmt.Println(packet)
 	put := &udpComm{}
 	*put = *packet
 	put.Status = ors.Add(packet.Key, packet.Val, packet.Tag, packet.Payload)
-
 	fmt.Println("Put contain test")
 	fmt.Println(sliceContains(activeKeys, packet.Key))
-
 	if !sliceContains(activeKeys, packet.Key) {
 		fmt.Println("Add to activeKeys " + packet.Key)
 		activeKeys = append(activeKeys, packet.Key)
 	}
-
 	fmt.Println("Put value: " + packet.Key)
-
 	//LogLocalEvent("Local Put returned: " + retVal)
-
-	/*put := &udpComm{
-		Type:    "Put",
-		Key:     packet.Key,
-		Val:     packet.Val,
-		TestVal: "",
-		NewVal:  "",
-		Status:  "Success",
-	}*/
 	fmt.Println("Returned from Putudp in " + nodeId)
 	return put
 }
@@ -955,13 +881,7 @@ func openConnection(localAddr, remoteAddr string) *net.UDPConn {
 	laddr, err := net.ResolveUDPAddr("udp", port)
 	errorCheck(err, "Something is Wrong with the given local address")
 
-	//raddr, err := net.ResolveUDPAddr("udp", remoteAddr)
-	//errorCheck(err, "Something is Wrong with the given remote address")
-
 	conn, _ := net.ListenUDP("udp", laddr)
-	//conn, err := net.DialUDP("udp", laddr, raddr)
-	//errorCheck(err, "Something has gone wrong in the initial connection")
-
 	return conn
 }
 
@@ -977,10 +897,6 @@ func sendMsgLog(sendingAddr string, listeningAddr string, msg string) {
 	LogMutex.Unlock()
 
 	conn := openConnection(sendingAddr, listeningAddr)
-
-	//laddr, err := net.ResolveUDPAddr("udp", listeningAddr)
-	//errorCheck(err, "Something is Wrong with the given local address")
-	//conn.WriteToUDP(outBuf, laddr)
 
 	_, err := conn.Write(outBuf)
 
@@ -1106,7 +1022,6 @@ func buildORSET() {
 
 func contactNodes() {
 	fmt.Println("contactNodes")
-	//totalNodes := len(nodeIdList)
 
 	val, _ := strconv.Atoi(nodeId)
 	currentNode := val - 1
@@ -1153,12 +1068,8 @@ func contactNodes() {
 		}
 	}
 
-	//	for i := 1; i <= repFactor-1; i++ {
 	fmt.Println("contacting Replicas")
 	for _, j := range requestBuffer {
-		//if currentNode >= totalNodes {
-		//	currentNode = 0
-		//}
 
 		build := &udpComm{
 			Type:    "Replica",
@@ -1176,14 +1087,11 @@ func contactNodes() {
 		fmt.Println("Prepped message")
 
 		fmt.Println("got udp lock")
-		//fmt.Println("Contacting Replica: " + nodesUDPAddrMap[strconv.Itoa(currentNode)])
-		//conn := openConnection(nodeOrsetBuildAddr, nodesUDPAddrMap[strconv.Itoa(currentNode)])
 		fmt.Println("Contacting Node: " + j)
 		conn := openConnection(nodeOrsetBuildAddr, j)
 
 		fmt.Println("Opened connection to Node")
 
-		//laddr, err := net.ResolveUDPAddr("udp", nodesUDPAddrMap[strconv.Itoa(currentNode)])
 		laddr, err := net.ResolveUDPAddr("udp", j)
 		errorCheck(err, "Something is Wrong with the given local address")
 		fmt.Println("Sending Replica Request")
@@ -1235,15 +1143,11 @@ func contactNodes() {
 			ors.Merge(newORset)
 			kvMutex.Unlock()
 		}
-
-		//currentNode++
-
 	}
 }
 
 func contactMyReplicas() {
 	fmt.Println("ContactMyReplicas")
-	//totalNodes := len(nodeIdList)
 
 	val, _ := strconv.Atoi(nodeId)
 	currentNode := val + 1
@@ -1290,12 +1194,8 @@ func contactMyReplicas() {
 		}
 	}
 
-	//	for i := 1; i <= repFactor-1; i++ {
 	fmt.Println("contacting Replicas")
 	for _, j := range requestBuffer {
-		//if currentNode >= totalNodes {
-		//	currentNode = 0
-		//}
 
 		build := &udpComm{
 			Type:    "Build",
@@ -1313,14 +1213,11 @@ func contactMyReplicas() {
 		fmt.Println("Prepped message")
 
 		fmt.Println("got udp lock")
-		//fmt.Println("Contacting Replica: " + nodesUDPAddrMap[strconv.Itoa(currentNode)])
-		//conn := openConnection(nodeOrsetBuildAddr, nodesUDPAddrMap[strconv.Itoa(currentNode)])
 		fmt.Println("Contacting Replica: " + j)
 		conn := openConnection(nodeOrsetBuildAddr, j)
 
 		fmt.Println("Opened connection to Replica")
 
-		//laddr, err := net.ResolveUDPAddr("udp", nodesUDPAddrMap[strconv.Itoa(currentNode)])
 		laddr, err := net.ResolveUDPAddr("udp", j)
 		errorCheck(err, "Something is Wrong with the given local address")
 		fmt.Println("Sending Build Request")
@@ -1372,9 +1269,6 @@ func contactMyReplicas() {
 			ors.Merge(newORset)
 			kvMutex.Unlock()
 		}
-
-		//currentNode++
-
 	}
 }
 
