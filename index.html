@@ -5,10 +5,13 @@
 	<meta charset="utf-8">
 	<title>Distributed To Do List</title>
 	<meta name="description" content="cs416-Team">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
+	integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+	<!-- Latest compiled and minified JavaScript -->
 
 	<link href='https://fonts.googleapis.com/css?family=Roboto:400,700,900|Lato:400,700' rel='stylesheet' type='text/css'>
 	<style>
-		* {
+		*{
 			box-sizing: border-box;
 		}
 
@@ -154,6 +157,8 @@
 				}
 	</style>
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
+	integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -164,23 +169,23 @@
 		<div class="card-content">
 			Please type a task and description
 		</div>
-		<form id="form" action="/add" method="post">
+		<form id="form" action="/" method="post">
 
-			<input name="task" class="task-name textfield" type="text" placeholder="Task Name">
+			<input name="task" id="key" class="task-name textfield" type="text" placeholder="Task Name">
 			<input name="description" class="task-description textfield" type="text" placeholder="Task Description">
 			<div class="button">
-				<button class="create-btn" type="Submit">Add</button>
+				<button class="create-btn" id="add-button" type="Submit">Add</button>
 			</div>
 		</form>
-		<form id="get" action="/get" method="get">
-			<input name="get-task" class="task-description textfield" type="text" placeholder="Enter Task Key You Want to Get">
+		<form id="get" action="/" method="get">
+			<input id="get-task" class="task-description textfield" type="text" placeholder="Enter Task Key You Want to Get">
 			<div class ="button">
-				<button class="create-btn" type="Submit">Get</button>
+				<button class="create-btn" id="get-button" type="Submit">Get</button>
 			</div>
 		</form>
 		<div class="tasks-container" id="todolist">
 			<ul id="tasks"></ul>
-			<button class="create-btn" id="refresh" type="submit">Refresh</button>
+			<button class="create-btn" id="refresh" type="Submit">Refresh</button>
 		</div>
 	</div>
 
@@ -191,7 +196,6 @@
 		function ConvertFormToJSON(form) {
 		    var array = jQuery(form).serializeArray();
 		    var json = {};
-
 		    jQuery.each(array, function() {
 		        json[this.name] = this.value || '';
 		    });
@@ -201,7 +205,7 @@
 		jQuery(document).on('ready',function() {
 
 			// ADD TASK FUNCTION
-			$('form').bind('submit', function(event){
+			$('#form').bind('submit', function(event) {
 				event.preventDefault();
 				var form = this;
 				var json = ConvertFormToJSON(form);
@@ -212,16 +216,17 @@
 					data: JSON.stringify(json),
 					dataType: "json",
 					contentType: "application/json",
-					success: function(newtask) {
-						console.log('New Task Added')
+					success: function() {
+						// remove duplicate key in tasklist
 						var t = {"task":json.task, "description":json.description};
-						// if key exists, update the value only
-						if (!(t.task in tasklist)) {
-							tasklist.push(t);
-						} else {
-							tasklist[t.task] = t.description;
-						}
+						tasklist = $.grep(tasklist, function(e){
+     						return e.task != t.task;
+						});
+						// add updated/new task to tasklist
+						tasklist.push(t);
+						console.log('New Task Added')
 						$("form").trigger("reset"); // clear form after success!
+						GetJSONData(); // update the task list
 					},
 					error: function(err) {
 						alert('error adding task' + err);
@@ -229,7 +234,47 @@
 				});
 				return true;
 			});
-			// Function when client clicks Update Button
+			// disable ADD button unless there is at least a key
+			$('#add-button').prop('disabled',true);
+			$('#key').keyup(function(){
+			      $('#add-button').prop('disabled', this.value == "" ? true : false);
+			})
+			// disable GET button unless there is some input
+			$('#get-button').prop('disabled',true);
+			$('#get-task').keyup(function(){
+			      $('#get-button').prop('disabled', this.value == "" ? true : false);
+			})
+
+			//Function when client clicks Get Button
+			$('#get-button').on('click', function() {
+			  var key = $('#get-task').val();
+			  console.log(JSON.stringify(key));
+			  $.ajax({
+				  type:"GET",
+				  url: "/get/"+key,
+				  dataType: "json",
+				  contentType: "application/json",
+				  success: function(response) {
+					  // remove duplicate key in tasklist
+					  var t = {"task":response.task,
+								  "description":response.description};
+					  tasklist = $.grep(tasklist, function(e){
+						  return e.task != t.task;
+					  });
+					  tasklist.push(t)
+					  $("form").trigger("reset");
+					  console.log('Successful GET')
+					  GetJSONData();
+				  },
+				  error: function() {
+					  console.log('error getting todo:'+key);
+				  }
+			  });
+		  });
+
+
+
+			// Function when client clicks refresh Button
 			$('#refresh').click(function() {
 				GetJSONData();
 			});
@@ -237,6 +282,7 @@
 			// GET TODO LIST
 			function GetJSONData() {
 				$('#tasks').empty();  // clear list
+				console.log("BEFORE: " + JSON.stringify(tasklist));
 				$.each(tasklist, function(i, item) {
 					var key = item.task;
 					$.ajax({
@@ -249,10 +295,10 @@
 							console.log(response)
 							if (response.description != null) {
 								$('ul').append("<li><b>Task:</b> " + response.task +
-									", <b>Description:</b> " + response.description + "</li>");
+									" <b>Description:</b> " + response.description + "</li>");
 									$(this).fadeIn(500);
 								}
-							},
+							console.log("AFTER: " + JSON.stringify(tasklist))},
 						error: function() {
 							console.log('error getting todo:'+key);
 						}
