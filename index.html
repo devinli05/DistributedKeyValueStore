@@ -102,7 +102,7 @@
 			overflow: auto;
 			font-family: 'Roboto', sans-serif;
 			font-weight: 400;
-			font-size: 14px;
+			font-size: 18px;
 		}
 
 			.task-item {
@@ -155,6 +155,9 @@
 					background-color: #4CC417;
 					border-left: 5px solid #7FE817;
 				}
+				.icon {
+    				float: right;
+				}
 	</style>
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
@@ -177,7 +180,7 @@
 				<button class="create-btn" id="add-button" type="Submit">Add</button>
 			</div>
 		</form>
-		<form id="get" action="/" method="get">
+		<form id="get" action="#" method="get">
 			<input id="get-task" class="task-description textfield" type="text" placeholder="Enter Task Key You Want to Get">
 			<div class ="button">
 				<button class="create-btn" id="get-button" type="Submit">Get</button>
@@ -200,6 +203,35 @@
 		        json[this.name] = this.value || '';
 		    });
 		    return json;
+		}
+		function removeTask(key) {
+			// get object
+			// console.log("id=" +id)
+			// var task = $.grep(tasklist, function(e)
+			// 	{ return e.task == id; });
+			// var json = JSON.stringify(task);
+			// console.log("Attempting to Remove: " +json);
+			$.ajax({
+				type:"DELETE",
+				url: "/get/"+key,   /*SERVER URL */
+				// data: json,
+				dataType: "json",
+				contentType: "application/json",
+				success: function() {
+					//remove key from tasklist
+					console.log("successful DELETE")
+					console.log("BEFORE delete: " + JSON.stringify(tasklist));
+
+					tasklist = $.grep(tasklist, function(e){
+						return e.task != key;
+					});
+					console.log("After: " + JSON.stringify(tasklist));
+					// $("form").trigger("reset"); // clear form after success!
+				},
+				error: function(err) {
+					alert('error deleting task' + JSON.stringify(err));
+				}
+			});
 		}
 
 		jQuery(document).on('ready',function() {
@@ -261,15 +293,21 @@
 					  tasklist = $.grep(tasklist, function(e){
 						  return e.task != t.task;
 					  });
-					  tasklist.push(t)
+					  if (response.description != undefined) {
+						  $('ul').append("<li><b>Task:</b> " + response.task +
+							  " <b>Description:</b> " + response.description + "</li>");
+							  $(this).fadeIn(500);
+						  }
+						  tasklist.push(t)
 					  $("form").trigger("reset");
-					  console.log('Successful GET')
-					  GetJSONData();
+						console.log(response)
+						console.log('Successful GET')
 				  },
 				  error: function() {
 					  console.log('error getting todo:'+key);
 				  }
 			  });
+			  return false;
 		  });
 
 
@@ -295,7 +333,8 @@
 							console.log(response)
 							if (response.description != null) {
 								$('ul').append("<li><b>Task:</b> " + response.task +
-									" <b>Description:</b> " + response.description + "</li>");
+									" <b>Description:</b> " + response.description +
+									"<button type=\"button\" id=\""+response.task+"\" onClick=\"removeTask(\'"+response.task+"\');\" class=\"btn btn-default\" aria-label=\"Right Align\"><span class=\"glyphicon glyphicon-remove\" aria-hidden=\"true\"></span></li>");
 									$(this).fadeIn(500);
 								}
 							console.log("AFTER: " + JSON.stringify(tasklist))},
@@ -305,6 +344,7 @@
 					});
 				});
 			}
+
 			// Auto REFRESH CODE
 			// window.setInterval(function(){
 			//   	GetJSONData(); /// call your function here

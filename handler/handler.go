@@ -40,8 +40,10 @@ func NewRouter(nodeId string, udpAddr string) http.Handler {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/", Index)
 	router.HandleFunc("/add", Add).Methods("POST")
-	router.HandleFunc("/remove", Remove).Methods("DELETE")
+	router.HandleFunc("/get/{key}", Remove).Methods("DELETE")
 	router.HandleFunc("/get/{key}", GetTodo).Methods("GET")
+	router.NotFoundHandler = http.HandlerFunc(notFound)
+
 	return router
 }
 
@@ -96,17 +98,13 @@ func Add(w http.ResponseWriter, r *http.Request) {
 }
 
 func Remove(w http.ResponseWriter, r *http.Request) {
-	var todo Todo
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&todo)
-	if err != nil {
-		panic("error in REMOVE decoding JSON")
-	}
+	vars := mux.Vars(r)
+	task := vars["key"]
 
 	// Remove Request
 	removeArgs := udpComm{
 		Type:    "Remove",
-		Key:     todo.Task,
+		Key:     task,
 		Val:     "",
 		TestVal: "",
 		NewVal:  "",
@@ -119,10 +117,10 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 	checkError(err)
 	udpConn, err := net.ListenUDP("udp", lAddr)
 	checkError(err)
-	requestUdp := Logger.PrepareSend("request remove "+todo.Task+":"+todo.Description, removeArgs)
+	requestUdp := Logger.PrepareSend("request remove "+task, removeArgs)
 	udpConn.WriteToUDP(requestUdp, rAddr)
 	fmt.Println("Wait for response")
-	responseUdp, _ := readMessage("response remove "+todo.Task+":"+todo.Description, udpConn)
+	responseUdp, _ := readMessage("response remove "+task, udpConn)
 	fmt.Println(responseUdp)
 	udpConn.Close()
 
@@ -131,7 +129,7 @@ func Remove(w http.ResponseWriter, r *http.Request) {
 		// send back success ack
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(todo); err != nil {
+		if err := json.NewEncoder(w).Encode(task); err != nil {
 			panic(err)
 		}
 	}
@@ -173,6 +171,10 @@ func GetTodo(w http.ResponseWriter, r *http.Request) {
 			panic("error in encoding json to send to client")
 		}
 	}
+}
+
+func notFound(w http.ResponseWriter, r *http.Request) {
+	Index(w, r)
 }
 
 func readMessage(govecMsg string, conn *net.UDPConn) (*udpComm, net.Addr) {
