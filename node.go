@@ -67,6 +67,15 @@ type ActiveList struct{}
 
 func (list ActiveList) NotifyJoin(n *memberlist.Node) {
 	fmt.Println(n.Name + " joined")
+
+	s := strings.Split(n.Name, "Node")
+	_, ID := s[0], s[1]
+
+	if inactiveNodes[ID] == true {
+		delete(inactiveNodes, ID)
+		delete(proxyNodes, ID)
+		fmt.Println("Removed " + n.Name + " from proxyNodes and inactiveNodes slices")
+	}
 }
 
 func (list ActiveList) NotifyLeave(n *memberlist.Node) {
