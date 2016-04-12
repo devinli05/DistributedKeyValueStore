@@ -57,6 +57,7 @@ func (o *ORMap) Remove(key string, old []string) {
 		}
 		o.removeMap[key] = rm
 	}
+	o.gc(key)
 }
 
 func (o *ORMap) Get(key string) string {
