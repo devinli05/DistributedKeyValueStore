@@ -48,7 +48,7 @@ var LogMutex *sync.Mutex
 
 func Index(w http.ResponseWriter, r *http.Request) {
 
-	http.ServeFile(w, r, "index.html")
+	http.ServeFile(w, r, "indexV2.html")
 }
 
 func Add(w http.ResponseWriter, r *http.Request) {
