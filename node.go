@@ -86,7 +86,7 @@ func (list ActiveList) NotifyLeave(n *memberlist.Node) {
 	fmt.Println(ID)
 	inactiveNodes[ID] = true
 	int_ID, _ := strconv.Atoi(ID)
-	proxyInt := int_ID + repFactor - 1
+	proxyInt := int_ID + repFactor
 	fmt.Println(proxyInt)
 	for {
 		if proxyInt < len(nodeIdList) {
