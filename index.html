@@ -17,7 +17,7 @@
 			box-sizing: border-box;
 		}
 		body {
-			/*font-family: 'Montserrat'*/
+			font-family: 'Montserrat'
 		}
 
 		.jumbotron {
@@ -26,7 +26,12 @@
 
 		}
 		.jumbotron h1 {
-				color: #ffffff;
+			color: #ffffff;
+			/*font-size: xx-large;*/
+		}
+		.jumbotron h2 {
+			color: #ecf0f1;
+			font-size: large;
 		}
 
 		.btn {
@@ -36,6 +41,7 @@
 		input {
 			margin-bottom: 10px;
 		}
+
 	</style>
 </head>
 
@@ -43,7 +49,7 @@
 <body data-ng-controller"Controller">
 	<div class="jumbotron">
 		<div class="container-fluid">
-			<center><h1>The No(de) Conflict To Do List</h1></center>
+			<center><h2>The No<font color="#bdc3c7">(de)</font> Conflict</h2> <h1>To Do List</h1></center>
 		</div>
 	</div>
 	<div class="container">
@@ -91,6 +97,9 @@
 					</tbody>
 				</table>
 				<button class="btn btn-primary" id="refresh-button" ng-click="refreshTasks()" type="submit">Refresh</button>
+				<div class="checkbox">
+					<label><input type="checkbox" ng-model="checkbox" value="">Auto Refresh </label>
+				</div>
 			</div>
 	</div>
 	<script>
@@ -117,10 +126,11 @@
 		});
 
 		// create angular controller and pass in $scope
- 		todoApp.controller('Controller', ['$scope','$http', 'global', function($scope, $http, global) {
+ 		todoApp.controller('Controller', ['$scope','$http', 'global','$interval', function($scope, $http, global, $interval) {
 			$scope.localtasks = global;
 			$scope.todo = {};
 			$scope.getkey = "";
+			$scope.checkbox;
 
 			// Function to PUT task to server
 			$scope.addTask = function() {
@@ -199,6 +209,17 @@
 				$scope.getTasks();
 			};
 
+			$interval(function () {
+				if($scope.checkbox) {
+					$scope.getTasks();
+				}
+			}, 3000);
+
+			// $timeout(function(){
+			//
+			// 	$scope.refreshTasks();
+		   // },3000)
+
 			$scope.getTasks = function() {
 					console.log("RefreshTask Function Activated");
 					console.log("tasklist before: " +JSON.stringify(global.tasklist));
@@ -239,102 +260,6 @@
 					// });
 				};
 		}]);
-
-
-
-		//
-		// 	function ConvertFormToJSON(form) {
-		// 	    var array = jQuery(form).serializeArray();
-		// 	    var json = {};
-		// 	    jQuery.each(array, function() {
-		// 	        json[this.name] = this.value || '';
-		// 	    });
-		// 	    return json;
-		// 	}
-		//
-		// 	// ADD TASK FUNCTION
-		// 	$('form').bind('submit', function(event){
-		// 		event.preventDefault();
-		// 		var form = this;
-		// 		var json = ConvertFormToJSON(form);
-		// 		console.log(json);
-		// 		$.ajax({
-		// 			type:"POST",
-		// 			url: "/add",   /*SERVER URL */
-		// 			data: JSON.stringify(json),
-		// 			dataType: "json",
-		// 			contentType: "application/json",
-		// 			success: function(newtask) {
-		// 				console.log('New Task Added')
-		// 				var t = {"task":json.task, "description":json.description};
-		// 				tasklist.push(t);
-		// 				console.log(tasklist);
-		// 				$("form").trigger("reset"); // clear form after success!
-		// 			},
-		// 			error: function() {
-		// 				alert('error adding task');
-		// 			}
-		// 		});
-		// 		return true;
-		// 	});
-		//
-		// 	$('#refresh-button').click(function() {
-		// 		GetJSONData();
-		// 	});
-		//
-		// 	// GET TODO LIST
-		// 	function GetJSONData() {
-		// 		$('table').empty();  // clear list
-		// 		$.each(tasklist, function(i, item) {
-		// 			var key = item.task;
-		// 			$.ajax({
-		// 				type:"GET",
-		// 				url: "/"+key,
-		// 				dataType: "json",
-		// 				contentType: "application/json",
-		// 				success: function(response) {
-		// 					console.log('Successful Get')
-		// 					console.log(response)
-		// 					if (response.description != null) {
-		// 						$('ul').append("<li><b>Task:</b> " + response.task +
-		// 							", <b>Description:</b> " + response.description + "</li>");
-		// 							$(this).fadeIn(500);
-		// 						}
-		// 					},
-		// 				error: function() {
-		// 					console.log('error getting todo:'+key);
-		// 				}
-		// 			});
-		// 		});
-		// 	}
-		// }
-
-		// jQuery(document).on('ready',function() {
-		//
-		//
-		// 	window.setInterval(function(){
-		// 	  	GetJSONData(); /// call your function here
-		// 	}, 5000);
-		// 		// $('.tasks-container').load(load.html); {
-				// 	var $tasks = $('#tasks');
-				// 	$.ajax({
-				// 		type:'GET',
-				// 		url: '/todos',   /*SERVER URL */
-				// 		success: function(tasks) {
-				// 			if(!$.isEmptyObject(tasks)) {
-				// 				// var obj = JSON.parse(data);
-				// 				$.each(tasks, function(i, item) {
-				// 					$tasks.append('<li><b>Task:</b> '+ item.task + ', </b>Description:</b> ' + item.description + '</li>');
-				// 				});
-				// 			}
-				// 		},
-				// 		timeout: 4000,
-				// 		error: function() {
-				// 			alert('error loading tasks');
-				// 		}
-				// 	});
-				// };
-			// setInterval('AutoRefreshTasks()', 5000); // refresh div after 5 secs
 	</script>
 </body>
 </html>
