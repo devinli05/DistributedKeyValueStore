@@ -1183,7 +1183,7 @@ func contactNodes() {
 		}
 
 		LogMutex.Lock()
-		msg := Logger.PrepareSend("Sending Replica Request to Replica", build)
+		msg := Logger.PrepareSend("Rebuilding My ORMAP - Contact Node I am Replica for", build)
 		LogMutex.Unlock()
 
 		fmt.Println("Prepped message")
@@ -1227,6 +1227,7 @@ func contactNodes() {
 
 			LogMutex.Lock()
 			Logger.UnpackReceive("Receive Message", buffer[:bytesRead], &packet)
+			Logger.LogLocalEvent("Received Keys: " + packet.Keys + " Received Values: " packet.Values)
 			LogMutex.Unlock()
 			fmt.Println(packet)
 			kvMutex.Lock()
@@ -1320,7 +1321,7 @@ func contactMyReplicas() {
 		}
 
 		LogMutex.Lock()
-		msg := Logger.PrepareSend("Sending Build Request to Replica", build)
+		msg := Logger.PrepareSend("Rebuilding My ORMAP - Contact My Replica", build)
 		LogMutex.Unlock()
 
 		fmt.Println("Prepped message")
@@ -1363,7 +1364,8 @@ func contactMyReplicas() {
 			fmt.Println(packet.Values)
 
 			LogMutex.Lock()
-			Logger.UnpackReceive("Receive Message", buffer[:bytesRead], &packet)
+			Logger.UnpackReceive("Received Message", buffer[:bytesRead], &packet)
+			Logger.LogLocalEvent("Keys Received: " + packet.Keys + " Values Received: " + packet.Values)
 			LogMutex.Unlock()
 			fmt.Println(packet)
 			kvMutex.Lock()
