@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -731,6 +732,7 @@ func distribute(packet *udpComm, packet_type string) *udpComm {
 	switch {
 	case strings.EqualFold(packet_type, "Put"):
 		for m, n := range requestBuffer {
+			time.Sleep(time.Millisecond * time.Duration(rand.Intn(2)*300))
 			if strings.EqualFold(m, nodeId) {
 				//fmt.Println("Storing to self")
 				response := Putudp(packet)
@@ -1406,6 +1408,8 @@ func main() {
 	gossipID := os.Args[2]
 	restartFlag := os.Args[3]
 
+	sd, _ := strconv.Atoi("42" + gossipID)
+	rand.Seed(int64(sd))
 	nodeId = gossipID
 	config, err := ioutil.ReadFile("config.json")
 	checkError(err)
@@ -1435,7 +1439,11 @@ func main() {
 	nodeOrsetBuildAddr = host + ":555" + nodeId
 
 	// Set up GoVector Logging
-	Logger = govec.Initialize(nodeId, nodeId)
+	if restartFlag == "1" {
+		Logger = govec.Initialize(nodeId+"restart", nodeId+"restart")
+	} else {
+		Logger = govec.Initialize(nodeId, nodeId)
+	}
 	LogMutex = &sync.Mutex{}
 	udpPortMutex = &sync.Mutex{}
 

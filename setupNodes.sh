@@ -1,4 +1,6 @@
 #!/bin/bash
+rm -f config.json
+cp local.json config.json
 go run node.go 3 0 0 >pro00.log 2>&1  &
 sleep 5
 go run node.go 3 1 0 >pro01.log 2>&1  &

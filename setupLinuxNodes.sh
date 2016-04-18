@@ -1,4 +1,6 @@
 #!/bin/bash
+rm -f config.json
+cp linuxnode.json config.json
 bash setuplin10.sh &
 sleep 5
 bash setuplin11.sh &
