@@ -1227,7 +1227,7 @@ func contactNodes() {
 
 			LogMutex.Lock()
 			Logger.UnpackReceive("Receive Message", buffer[:bytesRead], &packet)
-			Logger.LogLocalEvent("Received Keys: " + packet.Keys + " Received Values: " packet.Values)
+			Logger.LogLocalEvent("Received Keys: " + packet.Keys + " Received Values: " + packet.Values)
 			LogMutex.Unlock()
 			fmt.Println(packet)
 			kvMutex.Lock()
